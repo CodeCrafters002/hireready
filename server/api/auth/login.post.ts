@@ -23,7 +23,16 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // In demo/MVP mode: any password works if user exists, or match hash
+  // Verify password against stored passwordHash
+  const isPasswordValid = user.passwordHash === password
+
+  if (!isPasswordValid) {
+    throw createError({
+      statusCode: 401,
+      statusMessage: 'Invalid email or password'
+    })
+  }
+
   return {
     id: user.id,
     email: user.email,

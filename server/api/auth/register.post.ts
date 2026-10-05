@@ -5,12 +5,12 @@ export default defineEventHandler(async (event) => {
   await connectDB()
 
   const body = await readBody(event)
-  const { email, name, role = 'candidate', mobile = '', city = '', skills = [] } = body
+  const { email, name, password, role = 'candidate', mobile = '', city = '', skills = [] } = body
 
-  if (!email || !name) {
+  if (!email || !name || !password) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Email and name are required'
+      statusMessage: 'Email, name, and password are required'
     })
   }
 
@@ -31,7 +31,7 @@ export default defineEventHandler(async (event) => {
     email: email.toLowerCase().trim(),
     name,
     role: safeRole,
-    passwordHash: 'demo_hash',
+    passwordHash: password,
     createdAt: new Date().toISOString()
   })
 

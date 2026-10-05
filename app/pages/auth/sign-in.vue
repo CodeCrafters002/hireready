@@ -16,7 +16,7 @@ watch(isAuthenticated, (val) => {
   }
 }, { immediate: true })
 
-function handleSignIn() {
+async function handleSignIn() {
   error.value = ''
   loading.value = true
   if (!form.email || !form.password) {
@@ -24,10 +24,10 @@ function handleSignIn() {
     loading.value = false
     return
   }
-  const result = signIn(form.email, form.password)
+  const result = await signIn(form.email, form.password)
   loading.value = false
   if (!result.success) {
-    error.value = result.error || 'Sign-in failed.'
+    error.value = result.error || 'Invalid email or password.'
     return
   }
   const redirect = route.query.redirect as string

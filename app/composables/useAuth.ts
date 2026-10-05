@@ -17,29 +17,55 @@ export function useAuth() {
     }
   }
 
-  function signIn(email: string, _password: string): { success: boolean; error?: string } {
-    const store = useDataStore()
-    const user = store.getUserByEmail(email)
-    if (!user) return { success: false, error: 'No account found with this email.' }
-    currentUser.value = user
-    if (!import.meta.server) localStorage.setItem(AUTH_KEY, JSON.stringify(user))
+  async function signIn(email: string, password: string): Promise<{ success: boolean; error?: string }> {
+    const cleanEmail = email.toLowerCase().trim()
+    if (!cleanEmail || !password) {
+      return { success: false, error: 'Please enter both email and password.' }
+    }
 
-    // Optional background check with backend
-    $fetch('/api/auth/login', { method: 'POST', body: { email, password: _password } }).catch(() => null)
+    try {
+      // Authenticate with server database (validates real password)
+      const user = await $fetch<User>('/api/auth/login', {
+        method: 'POST',
+        body: { email: cleanEmail, password }
+      })
 
-    return { success: true }
+      if (!user || !user.id) {
+        return { success: false, error: 'Invalid email or password.' }
+      }
+
+      currentUser.value = user
+      if (!import.meta.server) {
+        localStorage.setItem(AUTH_KEY, JSON.stringify(user))
+      }
+
+      // Sync local store
+      const store = useDataStore()
+      const existing = store.getUserByEmail(user.email)
+      if (!existing) {
+        store.saveUsers([...store.getUsers(), user])
+      } else if (existing.role !== user.role) {
+        store.updateUserRole(existing.id, user.role)
+      }
+
+      return { success: true }
+    } catch (err: any) {
+      const msg = err.data?.statusMessage || err.message || 'Invalid email or password.'
+      return { success: false, error: msg }
+    }
   }
 
-  function signUp(name: string, email: string, _password: string, role: UserRole = 'candidate'): { success: boolean; error?: string; user?: User } {
+  async function signUp(name: string, email: string, password: string, role: UserRole = 'candidate'): Promise<{ success: boolean; error?: string; user?: User }> {
+    const cleanEmail = email.toLowerCase().trim()
     const store = useDataStore()
-    if (store.getUserByEmail(email)) return { success: false, error: 'An account with this email already exists.' }
-    const user = store.createUser({ name, email, role, passwordHash: _password || 'hashed_secret' })
+    if (store.getUserByEmail(cleanEmail)) return { success: false, error: 'An account with this email already exists.' }
+    const user = await store.createUser({ name, email: cleanEmail, role, passwordHash: password })
     // Auto-create blank profile for candidates
     if (role === 'candidate') {
       store.upsertProfile({
         userId: user.id,
         fullName: name,
-        email,
+        email: cleanEmail,
         mobile: '',
         city: '',
         skills: [],
@@ -53,13 +79,15 @@ export function useAuth() {
     currentUser.value = user
     if (!import.meta.server) localStorage.setItem(AUTH_KEY, JSON.stringify(user))
 
-    // Persist registration to MongoDB Atlas
-    $fetch('/api/auth/register', {
-      method: 'POST',
-      body: { name, email, role }
-    }).catch(err => {
+    // Persist registration to MongoDB Atlas with password
+    try {
+      await $fetch('/api/auth/register', {
+        method: 'POST',
+        body: { name, email: cleanEmail, password, role }
+      })
+    } catch (err: any) {
       console.warn('[Auth] MongoDB user register sync:', err)
-    })
+    }
 
     return { success: true, user }
   }

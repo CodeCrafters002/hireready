@@ -9,7 +9,7 @@ watch(isAuthenticated, (val) => {
   if (val) navigateTo('/candidate')
 }, { immediate: true })
 
-function handleSignUp() {
+async function handleSignUp() {
   error.value = ''
   if (!form.name || !form.email || !form.password) {
     error.value = 'Please fill in all fields.'
@@ -20,7 +20,7 @@ function handleSignUp() {
     return
   }
   loading.value = true
-  const result = signUp(form.name, form.email, form.password, 'candidate')
+  const result = await signUp(form.name, form.email, form.password, 'candidate')
   loading.value = false
   if (!result.success) {
     error.value = result.error || 'Sign-up failed.'
