@@ -60,10 +60,11 @@ export function useDataStore() {
       await $fetch('/api/seed', { method: 'POST', body: { force: false } }).catch(() => null)
 
       // 2. Fetch latest data in parallel from MongoDB
-      const [jobsData, appsData, questionsData] = await Promise.all([
+      const [jobsData, appsData, questionsData, usersData] = await Promise.all([
         $fetch<Job[]>('/api/jobs').catch(() => null),
         $fetch<Application[]>('/api/applications').catch(() => null),
-        $fetch<AssessmentQuestion[]>('/api/questions?all=true').catch(() => null)
+        $fetch<AssessmentQuestion[]>('/api/questions?all=true').catch(() => null),
+        $fetch<User[]>('/api/users').catch(() => null)
       ])
 
       if (jobsData && jobsData.length > 0) {
@@ -74,6 +75,9 @@ export function useDataStore() {
       }
       if (questionsData && questionsData.length > 0) {
         saveQuestions(questionsData)
+      }
+      if (usersData && usersData.length > 0) {
+        saveUsers(usersData)
       }
     } catch (err) {
       console.warn('[DataStore] Database sync non-fatal error:', err)
@@ -90,7 +94,43 @@ export function useDataStore() {
     const user: User = { ...data, id: uid('user'), createdAt: new Date().toISOString() }
     users.push(user)
     saveUsers(users)
+
+    // Sync to MongoDB
+    $fetch('/api/users', { method: 'POST', body: user }).catch(err => {
+      console.warn('[DataStore] MongoDB createUser error:', err)
+    })
+
     return user
+  }
+  function updateUserRole(id: string, role: UserRole): User | undefined {
+    const users = getUsers()
+    const index = users.findIndex(u => u.id === id)
+    if (index < 0) return undefined
+    const current = users[index]
+    if (!current) return undefined
+    const updated = { ...current, role }
+    users[index] = updated
+    saveUsers(users)
+
+    // Sync to MongoDB
+    $fetch(`/api/users/${id}`, { method: 'PUT', body: { role } }).catch(err => {
+      console.warn('[DataStore] MongoDB updateUserRole error:', err)
+    })
+
+    return updated
+  }
+  function deleteUser(id: string): boolean {
+    const users = getUsers()
+    const filtered = users.filter(u => u.id !== id)
+    if (filtered.length === users.length) return false
+    saveUsers(filtered)
+
+    // Sync to MongoDB
+    $fetch(`/api/users/${id}`, { method: 'DELETE' }).catch(err => {
+      console.warn('[DataStore] MongoDB deleteUser error:', err)
+    })
+
+    return true
   }
 
   // ── Profiles ────────────────────────────────────────────────────────────
@@ -369,7 +409,7 @@ export function useDataStore() {
   return {
     syncWithDatabase,
     // Users
-    getUsers, saveUsers, getUserById, getUserByEmail, createUser,
+    getUsers, saveUsers, getUserById, getUserByEmail, createUser, updateUserRole, deleteUser,
     // Profiles
     getProfiles, getProfileByUserId, upsertProfile,
     // Jobs

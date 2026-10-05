@@ -5,6 +5,7 @@ const sidebarOpen = ref(false)
 
 const navItems = [
   { label: 'Dashboard', icon: 'i-lucide-layout-dashboard', to: '/admin' },
+  { label: 'Users & Roles', icon: 'i-lucide-shield-check', to: '/admin/users' },
   { label: 'Manage Jobs', icon: 'i-lucide-briefcase', to: '/admin/jobs' },
   { label: 'Manage Candidates', icon: 'i-lucide-users', to: '/admin/candidates' },
   { label: 'Applications', icon: 'i-lucide-file-text', to: '/admin/applications' },

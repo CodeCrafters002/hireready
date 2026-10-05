@@ -16,12 +16,12 @@ export default defineNuxtRouteMiddleware((to) => {
     }
   }
 
-  // Admin-only routes
+  // Admin & Officer routes
   if (path.startsWith('/admin')) {
     if (!isAuthenticated.value) {
       return navigateTo('/auth/sign-in?redirect=' + encodeURIComponent(path))
     }
-    if (currentUser.value?.role !== 'admin') {
+    if (currentUser.value?.role !== 'admin' && currentUser.value?.role !== 'officer') {
       return navigateTo('/')
     }
   }

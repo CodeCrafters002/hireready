@@ -78,6 +78,7 @@ export function useAuth() {
   const isAuthenticated = computed(() => !!currentUser.value)
   const isCandidate = computed(() => currentUser.value?.role === 'candidate')
   const isAdmin = computed(() => currentUser.value?.role === 'admin')
+  const isOfficer = computed(() => currentUser.value?.role === 'officer')
   const isEmployer = computed(() => currentUser.value?.role === 'employer')
 
   return {
@@ -90,6 +91,7 @@ export function useAuth() {
     isAuthenticated,
     isCandidate,
     isAdmin,
+    isOfficer,
     isEmployer
   }
 }

@@ -5,7 +5,7 @@ const UserSchema = new Schema({
   id: { type: String, required: true, unique: true, index: true },
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   name: { type: String, required: true },
-  role: { type: String, enum: ['candidate', 'admin', 'employer'], default: 'candidate' },
+  role: { type: String, enum: ['candidate', 'admin', 'officer', 'employer'], default: 'candidate' },
   passwordHash: { type: String, required: true },
   createdAt: { type: String, default: () => new Date().toISOString() }
 })

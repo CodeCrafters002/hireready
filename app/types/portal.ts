@@ -1,5 +1,4 @@
-// ─── Roles ────────────────────────────────────────────────────────────────────
-export type UserRole = 'candidate' | 'admin' | 'employer'
+export type UserRole = 'candidate' | 'admin' | 'officer' | 'employer'
 
 // ─── User & Auth ──────────────────────────────────────────────────────────────
 export interface User {
