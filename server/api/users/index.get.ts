@@ -5,7 +5,17 @@ export default defineEventHandler(async (event) => {
   await connectDB()
 
   const query = getQuery(event)
-  const filter: Record<string, any> = {}
+  const filter: Record<string, any> = {
+    email: {
+      $nin: [
+        'admin@hireready.demo',
+        'rahul@demo.com',
+        'ananya@demo.com',
+        'vikram@demo.com',
+        'employer@brightstack.demo'
+      ]
+    }
+  }
 
   if (query.role) {
     filter.role = query.role

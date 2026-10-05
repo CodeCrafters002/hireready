@@ -79,7 +79,7 @@ async function handleCreateUser() {
       name: form.name.trim(),
       email: form.email.trim().toLowerCase(),
       role: form.role,
-      passwordHash: form.password || 'demo_hash',
+      passwordHash: form.password || `pwd_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       temporaryPassword: form.password || undefined,
       sendInviteEmail: form.sendInviteEmail
     })

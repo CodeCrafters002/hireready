@@ -40,7 +40,7 @@ function handleSignUp() {
             <span class="text-xl">HireReady</span>
           </NuxtLink>
           <h1 class="mt-4 text-2xl font-bold text-gray-950 dark:text-white">Create your account</h1>
-          <p class="mt-2 text-sm text-gray-500">Demo mode — no real data is stored</p>
+          <p class="mt-2 text-sm text-gray-500">Join verified candidates and top hiring teams</p>
         </div>
       </template>
 

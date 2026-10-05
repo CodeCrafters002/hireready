@@ -53,7 +53,5 @@ const cards = computed(() => [
         </UCard>
       </NuxtLink>
     </div>
-
-    <UAlert class="mt-8" color="info" variant="soft" title="Demo Mode" description="All data is stored in localStorage. Clear browser storage to reset everything." icon="i-lucide-info" />
   </div>
 </template>

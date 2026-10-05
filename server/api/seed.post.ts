@@ -28,21 +28,36 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // 1. Seed Users
-  const users = [
-    { id: 'user-admin-1', email: 'admin@hireready.demo', name: 'Priya Sharma (Admin)', role: 'admin', passwordHash: 'demo_hash', createdAt: '2026-01-15T09:00:00Z' },
-    { id: 'user-cand-1', email: 'rahul@demo.com', name: 'Rahul Mehta', role: 'candidate', passwordHash: 'demo_hash', createdAt: '2026-06-10T10:00:00Z' },
-    { id: 'user-cand-2', email: 'ananya@demo.com', name: 'Ananya Iyer', role: 'candidate', passwordHash: 'demo_hash', createdAt: '2026-07-01T08:30:00Z' },
-    { id: 'user-cand-3', email: 'vikram@demo.com', name: 'Vikram Joshi', role: 'candidate', passwordHash: 'demo_hash', createdAt: '2026-08-20T14:00:00Z' },
-    { id: 'user-emp-1', email: 'employer@brightstack.demo', name: 'Rohan Mehra (Hiring Partner)', role: 'employer', passwordHash: 'demo_hash', createdAt: '2026-05-01T09:00:00Z' }
-  ]
+  // Clean up any legacy demo users from MongoDB
+  await Promise.all([
+    UserModel.deleteMany({
+      email: {
+        $in: [
+          'admin@hireready.demo',
+          'rahul@demo.com',
+          'ananya@demo.com',
+          'vikram@demo.com',
+          'employer@brightstack.demo'
+        ]
+      }
+    }),
+    CandidateProfileModel.deleteMany({
+      email: {
+        $in: ['rahul@demo.com', 'ananya@demo.com', 'vikram@demo.com']
+      }
+    }),
+    ApplicationModel.deleteMany({
+      email: {
+        $in: ['rahul@demo.com', 'ananya@demo.com', 'vikram@demo.com']
+      }
+    })
+  ]).catch(() => null)
+
+  // 1. Initial Users (None by default on live website - only real registered users)
+  const users: any[] = []
 
   // 2. Candidate Profiles
-  const profiles = [
-    { userId: 'user-cand-1', fullName: 'Rahul Mehta', email: 'rahul@demo.com', mobile: '9876543210', city: 'Bengaluru', skills: ['JavaScript', 'Vue.js', 'TypeScript', 'CSS'], education: 'B.Tech in Computer Science — VIT Vellore, 2024', experience: '1.5 years as Frontend Intern at TechCorp', resumeFilename: 'rahul_mehta_resume.pdf', profilePhotoUrl: '', updatedAt: '2026-09-01T12:00:00Z' },
-    { userId: 'user-cand-2', fullName: 'Ananya Iyer', email: 'ananya@demo.com', mobile: '9123456780', city: 'Pune', skills: ['Java', 'Spring Boot', 'PostgreSQL', 'Docker'], education: 'M.Tech in Software Engineering — COEP Pune, 2025', experience: '2 years at CloudNest Systems', resumeFilename: 'ananya_iyer_resume.pdf', profilePhotoUrl: '', updatedAt: '2026-09-05T10:00:00Z' },
-    { userId: 'user-cand-3', fullName: 'Vikram Joshi', email: 'vikram@demo.com', mobile: '9988776655', city: 'Mumbai', skills: ['Excel', 'SQL', 'Tableau', 'Communication'], education: 'BBA — Mumbai University, 2023', experience: 'Fresher — completed internship at Apex Retail Labs', resumeFilename: '', profilePhotoUrl: '', updatedAt: '2026-09-10T14:00:00Z' }
-  ]
+  const profiles: any[] = []
 
   // 3. Jobs
   const jobs = [
@@ -54,13 +69,8 @@ export default defineEventHandler(async (event) => {
     { id: 'data-analyst-draft', title: 'Data Analyst', company: 'Metric Labs', location: 'Delhi NCR', type: 'Full-time', salary: '₹5–9 LPA', summary: 'Analyse datasets to uncover business insights and build dashboards.', description: 'Work with product and marketing teams to track KPIs and identify growth opportunities through data storytelling.', requirements: ['SQL proficiency', 'Python or R basics', 'Data visualisation tools (Tableau, Power BI)', 'Analytical mindset'], published: false, createdAt: '2026-09-01T09:00:00Z' }
   ]
 
-  // 4. Applications
-  const applications = [
-    { id: 'app-1001', jobId: 'frontend-developer', candidateId: 'user-cand-1', candidateName: 'Rahul Mehta', email: 'rahul@demo.com', phone: '9876543210', status: 'interview_scheduled', paymentAmount: 1000, assessmentScore: 80, interviewSlot: 'Tuesday, 4:00 PM', createdAt: '2026-08-01T10:00:00Z', updatedAt: '2026-09-20T15:00:00Z' },
-    { id: 'app-1002', jobId: 'java-backend-engineer', candidateId: 'user-cand-2', candidateName: 'Ananya Iyer', email: 'ananya@demo.com', phone: '9123456780', status: 'mcq_pending', paymentAmount: 1000, createdAt: '2026-08-15T11:00:00Z', updatedAt: '2026-09-18T10:00:00Z' },
-    { id: 'app-1003', jobId: 'business-analyst', candidateId: 'user-cand-3', candidateName: 'Vikram Joshi', email: 'vikram@demo.com', phone: '9988776655', status: 'payment_pending', paymentAmount: 1000, createdAt: '2026-09-10T14:30:00Z', updatedAt: '2026-09-10T14:30:00Z' },
-    { id: 'app-1004', jobId: 'qa-engineer', candidateId: 'user-cand-1', candidateName: 'Rahul Mehta', email: 'rahul@demo.com', phone: '9876543210', status: 'submitted_to_client', paymentAmount: 1000, assessmentScore: 100, interviewSlot: 'Wednesday, 11:00 AM', interviewFeedback: 'Strong communication, solid testing concepts.', createdAt: '2026-07-20T09:00:00Z', updatedAt: '2026-09-25T12:00:00Z' }
-  ]
+  // 4. Applications (None by default - live applicants only)
+  const applications: any[] = []
 
   // 5. Assessment Questions
   const questions = [
@@ -101,13 +111,15 @@ export default defineEventHandler(async (event) => {
     ])
   }
 
-  await Promise.all([
-    UserModel.insertMany(users),
-    CandidateProfileModel.insertMany(profiles),
+  const insertTasks: Promise<any>[] = [
     JobModel.insertMany(jobs),
-    ApplicationModel.insertMany(applications),
     AssessmentQuestionModel.insertMany(questions)
-  ])
+  ]
+  if (users.length > 0) insertTasks.push(UserModel.insertMany(users))
+  if (profiles.length > 0) insertTasks.push(CandidateProfileModel.insertMany(profiles))
+  if (applications.length > 0) insertTasks.push(ApplicationModel.insertMany(applications))
+
+  await Promise.all(insertTasks)
 
   return {
     success: true,

@@ -215,7 +215,7 @@ async function handleBreakGlassRecovery() {
                   v-model="form.email"
                   type="email"
                   required
-                  placeholder="admin@hireready.demo"
+                  placeholder="admin@yourcompany.com"
                   class="w-full rounded-xl border border-gray-200 bg-white/80 py-2.5 pl-9 pr-3 text-sm text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-700 dark:bg-gray-800/80 dark:text-white"
                 >
               </div>
@@ -233,31 +233,14 @@ async function handleBreakGlassRecovery() {
 
           <!-- Step 2: Enter Code & New Password -->
           <form v-else class="space-y-4" @submit.prevent="handleResetWithOtp">
-            <div v-if="emailSentReal" class="rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-xs text-indigo-900 dark:border-indigo-800/50 dark:bg-indigo-950/40 dark:text-indigo-200">
+            <div class="rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-xs text-indigo-900 dark:border-indigo-800/50 dark:bg-indigo-950/40 dark:text-indigo-200">
               <div class="flex items-start gap-2">
                 <UIcon name="i-lucide-mail-check" class="mt-0.5 size-4 shrink-0 text-indigo-600 dark:text-indigo-400" />
                 <div>
-                  <p class="font-semibold">Check your Gmail inbox</p>
+                  <p class="font-semibold">Check your email inbox</p>
                   <p class="text-[11px] text-indigo-700 dark:text-indigo-300">We dispatched a 6-digit verification code to <strong>{{ form.email }}</strong>. Please check your Inbox and Spam/Junk folder.</p>
                 </div>
               </div>
-            </div>
-
-            <div v-else-if="previewOtp" class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-800/50 dark:bg-amber-950/40 dark:text-amber-300">
-              <div class="flex items-center justify-between">
-                <div>
-                  <span class="font-semibold">Dev/Demo Mode Code:</span>
-                  <span class="ml-2 font-mono font-bold tracking-widest text-amber-900 dark:text-amber-100">{{ previewOtp }}</span>
-                </div>
-                <button
-                  type="button"
-                  class="rounded bg-amber-200/60 px-2 py-0.5 text-[10px] font-semibold text-amber-900 hover:bg-amber-200 dark:bg-amber-900 dark:text-amber-100"
-                  @click="form.otp = previewOtp"
-                >
-                  Auto-fill
-                </button>
-              </div>
-              <p class="mt-1 text-[10px] text-amber-700 dark:text-amber-400">Configure GMAIL_USER and GMAIL_APP_PASSWORD in .env / Vercel to receive emails directly in Gmail.</p>
             </div>
 
             <div>
@@ -340,7 +323,7 @@ async function handleBreakGlassRecovery() {
                   v-model="form.email"
                   type="email"
                   required
-                  placeholder="admin@hireready.demo"
+                  placeholder="admin@yourcompany.com"
                   class="w-full rounded-xl border border-gray-200 bg-white/80 py-2.5 pl-9 pr-3 text-sm text-gray-900 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 dark:border-gray-700 dark:bg-gray-800/80 dark:text-white"
                 >
               </div>

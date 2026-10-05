@@ -15,47 +15,11 @@ export function seedDemoData() {
   if (import.meta.server) return
   if (localStorage.getItem(SEED_FLAG)) return
 
-  // ── Demo users ──────────────────────────────────────────────────────────
-  const users: User[] = [
-    { id: 'user-admin-1', email: 'admin@hireready.demo', name: 'Priya Sharma (Admin)', role: 'admin', passwordHash: 'demo_hash', createdAt: '2026-01-15T09:00:00Z' },
-    { id: 'user-cand-1', email: 'rahul@demo.com', name: 'Rahul Mehta', role: 'candidate', passwordHash: 'demo_hash', createdAt: '2026-06-10T10:00:00Z' },
-    { id: 'user-cand-2', email: 'ananya@demo.com', name: 'Ananya Iyer', role: 'candidate', passwordHash: 'demo_hash', createdAt: '2026-07-01T08:30:00Z' },
-    { id: 'user-cand-3', email: 'vikram@demo.com', name: 'Vikram Joshi', role: 'candidate', passwordHash: 'demo_hash', createdAt: '2026-08-20T14:00:00Z' },
-    { id: 'user-emp-1', email: 'employer@brightstack.demo', name: 'Rohan Mehra (Hiring Partner)', role: 'employer', passwordHash: 'demo_hash', createdAt: '2026-05-01T09:00:00Z' }
-  ]
-
-  // ── Candidate profiles ──────────────────────────────────────────────────
-  const profiles: CandidateProfile[] = [
-    { userId: 'user-cand-1', fullName: 'Rahul Mehta', email: 'rahul@demo.com', mobile: '9876543210', city: 'Bengaluru', skills: ['JavaScript', 'Vue.js', 'TypeScript', 'CSS'], education: 'B.Tech in Computer Science — VIT Vellore, 2024', experience: '1.5 years as Frontend Intern at TechCorp', resumeFilename: 'rahul_mehta_resume.pdf', profilePhotoUrl: '', updatedAt: '2026-09-01T12:00:00Z' },
-    { userId: 'user-cand-2', fullName: 'Ananya Iyer', email: 'ananya@demo.com', mobile: '9123456780', city: 'Pune', skills: ['Java', 'Spring Boot', 'PostgreSQL', 'Docker'], education: 'M.Tech in Software Engineering — COEP Pune, 2025', experience: '2 years at CloudNest Systems', resumeFilename: 'ananya_iyer_resume.pdf', profilePhotoUrl: '', updatedAt: '2026-09-05T10:00:00Z' },
-    { userId: 'user-cand-3', fullName: 'Vikram Joshi', email: 'vikram@demo.com', mobile: '9988776655', city: 'Mumbai', skills: ['Excel', 'SQL', 'Tableau', 'Communication'], education: 'BBA — Mumbai University, 2023', experience: 'Fresher — completed internship at Apex Retail Labs', resumeFilename: '', profilePhotoUrl: '', updatedAt: '2026-09-10T14:00:00Z' }
-  ]
-
-  // ── Jobs ─────────────────────────────────────────────────────────────────
-  const jobs: Job[] = [
-    { id: 'frontend-developer', title: 'Frontend Developer', company: 'BrightStack Technologies', location: 'Bengaluru / Hybrid', type: 'Full-time', salary: '₹5–8 LPA', summary: 'Build clean, responsive product experiences using Vue and modern JavaScript.', description: 'You will work with a product team to turn designs into fast, accessible interfaces and improve our existing web application.', requirements: ['1+ year of frontend experience', 'JavaScript or TypeScript', 'Vue, React, or similar framework', 'Strong HTML and CSS fundamentals'], published: true, createdAt: '2026-06-01T09:00:00Z' },
-    { id: 'java-backend-engineer', title: 'Java Backend Engineer', company: 'CloudNest Systems', location: 'Pune / Remote', type: 'Full-time', salary: '₹7–11 LPA', summary: 'Design reliable APIs and services for a growing B2B SaaS platform.', description: 'Join a backend team building secure, scalable services. You will own API features from design through production support.', requirements: ['2+ years with Java and Spring Boot', 'REST API development', 'SQL and relational databases', 'Git and code review experience'], published: true, createdAt: '2026-06-15T09:00:00Z' },
-    { id: 'business-analyst', title: 'Business Analyst', company: 'Apex Retail Labs', location: 'Mumbai', type: 'Full-time', salary: '₹4–7 LPA', summary: 'Turn business questions into useful reports, requirements, and decisions.', description: 'You will partner with operational teams, document requirements, and deliver clear analysis that improves customer and business outcomes.', requirements: ['Strong Excel or Google Sheets skills', 'Clear written communication', 'Basic SQL is a plus', 'Comfort working with stakeholders'], published: true, createdAt: '2026-07-01T09:00:00Z' },
-    { id: 'qa-engineer', title: 'QA Engineer', company: 'Finbox Solutions', location: 'Hyderabad / Hybrid', type: 'Full-time', salary: '₹4–6 LPA', summary: 'Help ship trusted financial software through thoughtful manual and automated testing.', description: 'You will create test plans, report issues clearly, and partner with engineers to make releases safer and faster.', requirements: ['Knowledge of software testing basics', 'Attention to detail', 'API testing experience is helpful', 'Good communication skills'], published: true, createdAt: '2026-07-15T09:00:00Z' },
-    { id: 'devops-engineer', title: 'DevOps Engineer', company: 'InfraEdge Solutions', location: 'Remote', type: 'Full-time', salary: '₹8–14 LPA', summary: 'Build and maintain CI/CD pipelines, cloud infrastructure, and deployment automation.', description: 'You will own the deployment pipeline end-to-end, manage Kubernetes clusters, and work with engineering teams to improve developer experience.', requirements: ['AWS or GCP experience', 'Docker and Kubernetes', 'CI/CD tools (GitHub Actions, Jenkins)', 'Linux system administration'], published: true, createdAt: '2026-08-01T09:00:00Z' },
-    { id: 'data-analyst-draft', title: 'Data Analyst', company: 'Metric Labs', location: 'Delhi NCR', type: 'Full-time', salary: '₹5–9 LPA', summary: 'Analyse datasets to uncover business insights and build dashboards.', description: 'Work with product and marketing teams to track KPIs and identify growth opportunities through data storytelling.', requirements: ['SQL proficiency', 'Python or R basics', 'Data visualisation tools (Tableau, Power BI)', 'Analytical mindset'], published: false, createdAt: '2026-09-01T09:00:00Z' }
-  ]
-
-  // ── Applications ────────────────────────────────────────────────────────
-  const applications: Application[] = [
-    { id: 'app-1001', jobId: 'frontend-developer', candidateId: 'user-cand-1', candidateName: 'Rahul Mehta', email: 'rahul@demo.com', phone: '9876543210', status: 'interview_scheduled', paymentAmount: 1000, assessmentScore: 80, interviewSlot: 'Tuesday, 4:00 PM', createdAt: '2026-08-01T10:00:00Z', updatedAt: '2026-09-20T15:00:00Z' },
-    { id: 'app-1002', jobId: 'java-backend-engineer', candidateId: 'user-cand-2', candidateName: 'Ananya Iyer', email: 'ananya@demo.com', phone: '9123456780', status: 'mcq_pending', paymentAmount: 1000, createdAt: '2026-08-15T11:00:00Z', updatedAt: '2026-09-18T10:00:00Z' },
-    { id: 'app-1003', jobId: 'business-analyst', candidateId: 'user-cand-3', candidateName: 'Vikram Joshi', email: 'vikram@demo.com', phone: '9988776655', status: 'payment_pending', paymentAmount: 1000, createdAt: '2026-09-10T14:30:00Z', updatedAt: '2026-09-10T14:30:00Z' },
-    { id: 'app-1004', jobId: 'qa-engineer', candidateId: 'user-cand-1', candidateName: 'Rahul Mehta', email: 'rahul@demo.com', phone: '9876543210', status: 'submitted_to_client', paymentAmount: 1000, assessmentScore: 100, interviewSlot: 'Wednesday, 11:00 AM', interviewFeedback: 'Strong communication, solid testing concepts.', createdAt: '2026-07-20T09:00:00Z', updatedAt: '2026-09-25T12:00:00Z' }
-  ]
-
-  // ── Payments ────────────────────────────────────────────────────────────
-  const payments: Payment[] = [
-    { id: 'pay-1001', applicationId: 'app-1001', candidateId: 'user-cand-1', amount: 1000, status: 'paid', method: 'Demo payment', paidAt: '2026-08-01T10:05:00Z', createdAt: '2026-08-01T10:05:00Z' },
-    { id: 'pay-1002', applicationId: 'app-1002', candidateId: 'user-cand-2', amount: 1000, status: 'paid', method: 'Demo payment', paidAt: '2026-08-15T11:10:00Z', createdAt: '2026-08-15T11:10:00Z' },
-    { id: 'pay-1003', applicationId: 'app-1003', candidateId: 'user-cand-3', amount: 1000, status: 'pending', method: 'Demo payment', createdAt: '2026-09-10T14:30:00Z' },
-    { id: 'pay-1004', applicationId: 'app-1004', candidateId: 'user-cand-1', amount: 1000, status: 'paid', method: 'Demo payment', paidAt: '2026-07-20T09:05:00Z', createdAt: '2026-07-20T09:05:00Z' }
-  ]
+  // ── Initial data (catalog only, no fake demo user accounts) ────────────
+  const users: User[] = []
+  const profiles: CandidateProfile[] = []
+  const applications: Application[] = []
+  const payments: Payment[] = []
 
   // ── MCQ questions ───────────────────────────────────────────────────────
   const questions: AssessmentQuestion[] = [
@@ -111,20 +75,11 @@ export function seedDemoData() {
     { id: 'slot-002', date: '2026-10-01', time: '02:00 PM', available: true },
     { id: 'slot-003', date: '2026-10-02', time: '11:00 AM', available: true },
     { id: 'slot-004', date: '2026-10-02', time: '04:00 PM', available: true },
-    { id: 'slot-005', date: '2026-10-03', time: '09:30 AM', available: true },
-    { id: 'slot-006', date: '2026-09-20', time: '04:00 PM', available: false, bookedBy: 'user-cand-1', applicationId: 'app-1001' },
-    { id: 'slot-007', date: '2026-09-25', time: '11:00 AM', available: false, bookedBy: 'user-cand-1', applicationId: 'app-1004' }
+    { id: 'slot-005', date: '2026-10-03', time: '09:30 AM', available: true }
   ]
 
   // ── Notifications ───────────────────────────────────────────────────────
-  const notifications: AppNotification[] = [
-    { id: 'notif-001', userId: 'user-cand-1', type: 'payment', title: 'Payment confirmed', message: 'Your ₹1,000 demo payment for Frontend Developer was successful.', read: true, createdAt: '2026-08-01T10:05:00Z' },
-    { id: 'notif-002', userId: 'user-cand-1', type: 'assessment', title: 'MCQ passed', message: 'You scored 80% on the Frontend Developer assessment.', read: true, createdAt: '2026-08-05T14:00:00Z' },
-    { id: 'notif-003', userId: 'user-cand-1', type: 'interview', title: 'Interview scheduled', message: 'Your mock interview is booked for Tuesday, 4:00 PM.', read: false, createdAt: '2026-09-18T10:00:00Z' },
-    { id: 'notif-004', userId: 'user-cand-1', type: 'selection', title: 'Profile submitted', message: 'Your profile for QA Engineer has been submitted to Finbox Solutions.', read: false, createdAt: '2026-09-25T12:00:00Z' },
-    { id: 'notif-005', userId: 'user-cand-2', type: 'payment', title: 'Payment confirmed', message: 'Your ₹1,000 demo payment for Java Backend Engineer was successful.', read: true, createdAt: '2026-08-15T11:10:00Z' },
-    { id: 'notif-006', userId: 'user-cand-3', type: 'general', title: 'Welcome to HireReady', message: 'Complete your profile and start applying for jobs.', read: false, createdAt: '2026-09-10T14:30:00Z' }
-  ]
+  const notifications: AppNotification[] = []
 
   // ── Write to localStorage ───────────────────────────────────────────────
   localStorage.setItem('hr_users', JSON.stringify(users))

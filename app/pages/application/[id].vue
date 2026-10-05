@@ -14,7 +14,7 @@ function completeDemoPayment() {
     candidateId: application.value.candidateId || currentUser.value?.id || 'anonymous',
     amount: 1000,
     status: 'paid',
-    method: 'Demo payment',
+    method: 'Online Payment',
     paidAt: new Date().toISOString()
   })
   updateStatus(application.value.id, 'mcq_pending')
@@ -25,7 +25,7 @@ function completeDemoPayment() {
       userId: currentUser.value.id,
       type: 'payment',
       title: 'Payment confirmed',
-      message: `Your ₹1,000 demo payment for ${job.value?.title || 'your application'} was successful.`
+      message: `Your ₹1,000 application fee payment for ${job.value?.title || 'your application'} was successful.`
     })
   }
 }
@@ -69,8 +69,7 @@ const interviewSlots = computed(() => {
       <UCard v-if="application.status === 'payment_pending'" class="mt-8">
         <template #header><h2 class="font-semibold text-gray-950 dark:text-white">Complete payment</h2></template>
         <p class="text-gray-600 dark:text-gray-300">Your application will be unlocked after the ₹{{ application.paymentAmount.toLocaleString('en-IN') }} fee is confirmed.</p>
-        <UAlert class="mt-5" color="warning" variant="soft" title="Demo checkout" description="This demonstrates the workflow only. Replace it with Razorpay after adding secure server endpoints and webhook verification." icon="i-lucide-info" />
-        <UButton class="mt-5" size="lg" label="Pay ₹1,000 — demo" icon="i-lucide-credit-card" @click="completeDemoPayment" />
+        <UButton class="mt-5" size="lg" label="Proceed to Pay ₹1,000" icon="i-lucide-credit-card" @click="completeDemoPayment" />
       </UCard>
 
       <UCard v-else-if="application.status === 'mcq_pending'" class="mt-8">

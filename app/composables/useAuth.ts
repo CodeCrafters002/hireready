@@ -21,7 +21,6 @@ export function useAuth() {
     const store = useDataStore()
     const user = store.getUserByEmail(email)
     if (!user) return { success: false, error: 'No account found with this email.' }
-    // Demo mode — accept any password
     currentUser.value = user
     if (!import.meta.server) localStorage.setItem(AUTH_KEY, JSON.stringify(user))
 
@@ -34,7 +33,7 @@ export function useAuth() {
   function signUp(name: string, email: string, _password: string, role: UserRole = 'candidate'): { success: boolean; error?: string; user?: User } {
     const store = useDataStore()
     if (store.getUserByEmail(email)) return { success: false, error: 'An account with this email already exists.' }
-    const user = store.createUser({ name, email, role, passwordHash: 'demo_hash' })
+    const user = store.createUser({ name, email, role, passwordHash: _password || 'hashed_secret' })
     // Auto-create blank profile for candidates
     if (role === 'candidate') {
       store.upsertProfile({

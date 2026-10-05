@@ -25,7 +25,7 @@ function updatePaymentStatus(id: string, status: 'pending' | 'paid' | 'refunded'
       userId: payment.candidateId,
       type: 'payment',
       title: status === 'paid' ? 'Payment confirmed' : status === 'refunded' ? 'Payment refunded' : 'Payment pending',
-      message: `₹${payment.amount.toLocaleString('en-IN')} demo payment for ${job?.title || 'your application'} is now ${status}.`
+      message: `₹${payment.amount.toLocaleString('en-IN')} payment for ${job?.title || 'your application'} is now ${status}.`
     })
     // If paid, also update application status
     if (status === 'paid' && app && app.status === 'payment_pending') {
@@ -41,8 +41,6 @@ function updatePaymentStatus(id: string, status: 'pending' | 'paid' | 'refunded'
       <h2 class="text-2xl font-bold text-gray-950 dark:text-white">Manage Payments</h2>
       <p class="mt-1 text-gray-500">{{ payments.length }} total · ₹{{ payments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0).toLocaleString('en-IN') }} received</p>
     </div>
-
-    <UAlert class="mb-6" color="warning" variant="soft" title="Demo payments" description="All payments are simulated. No real money is processed until Razorpay is integrated." icon="i-lucide-info" />
 
     <div class="space-y-3">
       <UCard v-for="p in payments" :key="p.id">

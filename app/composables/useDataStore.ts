@@ -50,12 +50,59 @@ function uid(prefix = 'id'): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
+const DEMO_EMAILS = new Set([
+  'admin@hireready.demo',
+  'rahul@demo.com',
+  'ananya@demo.com',
+  'vikram@demo.com',
+  'employer@brightstack.demo'
+])
+
+function isDemoEmail(email?: string): boolean {
+  if (!email) return false
+  const lower = email.toLowerCase().trim()
+  return DEMO_EMAILS.has(lower) || lower.endsWith('@demo.com') || lower.endsWith('@hireready.demo') || lower.endsWith('@brightstack.demo')
+}
+
 // ─── Composable ───────────────────────────────────────────────────────────────
 export function useDataStore() {
+  function purgeDemoData(): void {
+    if (import.meta.server) return
+    try {
+      const users = read<User>(KEYS.users).filter(u => !isDemoEmail(u.email))
+      write(KEYS.users, users)
+
+      const profiles = read<CandidateProfile>(KEYS.profiles).filter(p => !isDemoEmail(p.email))
+      write(KEYS.profiles, profiles)
+
+      const apps = read<Application>(KEYS.applications).filter(a => !isDemoEmail(a.email) && !a.candidateId?.startsWith('user-cand-'))
+      write(KEYS.applications, apps)
+
+      const payments = read<Payment>(KEYS.payments).filter(p => !p.candidateId?.startsWith('user-cand-'))
+      write(KEYS.payments, payments)
+
+      const slots = read<InterviewSlot>(KEYS.interviewSlots).map(s => {
+        if (s.bookedBy?.startsWith('user-cand-')) {
+          return { ...s, available: true, bookedBy: undefined, applicationId: undefined }
+        }
+        return s
+      })
+      write(KEYS.interviewSlots, slots)
+
+      const notifs = read<AppNotification>(KEYS.notifications).filter(n => !n.userId?.startsWith('user-cand-'))
+      write(KEYS.notifications, notifs)
+    } catch (e) {
+      console.warn('[DataStore] purgeDemoData error:', e)
+    }
+  }
+
   // ── Database Sync ────────────────────────────────────────────────────────
   async function syncWithDatabase(): Promise<void> {
     if (import.meta.server) return
     try {
+      // Clean any demo accounts from client storage
+      purgeDemoData()
+
       // 1. First trigger server seed if needed
       await $fetch('/api/seed', { method: 'POST', body: { force: false } }).catch(() => null)
 
@@ -79,16 +126,18 @@ export function useDataStore() {
       if (usersData && usersData.length > 0) {
         saveUsers(usersData)
       }
+
+      purgeDemoData()
     } catch (err) {
       console.warn('[DataStore] Database sync non-fatal error:', err)
     }
   }
 
   // ── Users ───────────────────────────────────────────────────────────────
-  function getUsers(): User[] { return read<User>(KEYS.users) }
-  function saveUsers(users: User[]): void { write(KEYS.users, users) }
+  function getUsers(): User[] { return read<User>(KEYS.users).filter(u => !isDemoEmail(u.email)) }
+  function saveUsers(users: User[]): void { write(KEYS.users, users.filter(u => !isDemoEmail(u.email))) }
   function getUserById(id: string): User | undefined { return getUsers().find(u => u.id === id) }
-  function getUserByEmail(email: string): User | undefined { return getUsers().find(u => u.email === email) }
+  function getUserByEmail(email: string): User | undefined { return getUsers().find(u => u.email.toLowerCase() === email.toLowerCase()) }
   async function createUser(data: Omit<User, 'id' | 'createdAt'> & { temporaryPassword?: string; sendInviteEmail?: boolean }): Promise<User & { emailSent?: boolean }> {
     const users = getUsers()
     const user: User = {
@@ -96,7 +145,7 @@ export function useDataStore() {
       name: data.name,
       email: data.email,
       role: data.role,
-      passwordHash: data.temporaryPassword || data.passwordHash || 'demo_hash',
+      passwordHash: data.temporaryPassword || data.passwordHash || `pwd_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       createdAt: new Date().toISOString()
     }
     users.push(user)
@@ -151,8 +200,8 @@ export function useDataStore() {
   }
 
   // ── Profiles ────────────────────────────────────────────────────────────
-  function getProfiles(): CandidateProfile[] { return read<CandidateProfile>(KEYS.profiles) }
-  function saveProfiles(profiles: CandidateProfile[]): void { write(KEYS.profiles, profiles) }
+  function getProfiles(): CandidateProfile[] { return read<CandidateProfile>(KEYS.profiles).filter(p => !isDemoEmail(p.email)) }
+  function saveProfiles(profiles: CandidateProfile[]): void { write(KEYS.profiles, profiles.filter(p => !isDemoEmail(p.email))) }
   function getProfileByUserId(userId: string): CandidateProfile | undefined { return getProfiles().find(p => p.userId === userId) }
   function upsertProfile(data: CandidateProfile): CandidateProfile {
     const profiles = getProfiles()
@@ -214,8 +263,8 @@ export function useDataStore() {
   }
 
   // ── Applications ────────────────────────────────────────────────────────
-  function getApplications(): Application[] { return read<Application>(KEYS.applications) }
-  function saveApplications(apps: Application[]): void { write(KEYS.applications, apps) }
+  function getApplications(): Application[] { return read<Application>(KEYS.applications).filter(a => !isDemoEmail(a.email) && !a.candidateId?.startsWith('user-cand-')) }
+  function saveApplications(apps: Application[]): void { write(KEYS.applications, apps.filter(a => !isDemoEmail(a.email) && !a.candidateId?.startsWith('user-cand-'))) }
   function getApplicationById(id: string): Application | undefined { return getApplications().find(a => a.id === id) }
   function getApplicationsByCandidate(candidateId: string): Application[] { return getApplications().filter(a => a.candidateId === candidateId) }
   function createApplication(data: Omit<Application, 'id' | 'createdAt' | 'updatedAt'>): Application {
@@ -252,8 +301,8 @@ export function useDataStore() {
   }
 
   // ── Payments ────────────────────────────────────────────────────────────
-  function getPayments(): Payment[] { return read<Payment>(KEYS.payments) }
-  function savePayments(payments: Payment[]): void { write(KEYS.payments, payments) }
+  function getPayments(): Payment[] { return read<Payment>(KEYS.payments).filter(p => !p.candidateId?.startsWith('user-cand-')) }
+  function savePayments(payments: Payment[]): void { write(KEYS.payments, payments.filter(p => !p.candidateId?.startsWith('user-cand-'))) }
   function getPaymentByApplication(applicationId: string): Payment | undefined { return getPayments().find(p => p.applicationId === applicationId) }
   function createPayment(data: Omit<Payment, 'id' | 'createdAt'>): Payment {
     const payments = getPayments()
