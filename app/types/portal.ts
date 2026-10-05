@@ -22,6 +22,8 @@ export interface CandidateProfile {
   education: string
   experience: string
   resumeFilename: string
+  resumeDataUrl?: string
+  resumeFileSize?: string
   profilePhotoUrl: string
   updatedAt: string
 }

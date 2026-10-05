@@ -15,12 +15,18 @@ const form = reactive({
   education: '',
   experience: '',
   resumeFilename: '',
+  resumeDataUrl: '',
+  resumeFileSize: '',
   profilePhotoUrl: ''
 })
 
 const fileInput = ref<HTMLInputElement | null>(null)
+const resumeFileInput = ref<HTMLInputElement | null>(null)
 const uploadingPhoto = ref(false)
+const uploadingResume = ref(false)
 const photoError = ref('')
+const resumeError = ref('')
+const showPdfModal = ref(false)
 const saving = ref(false)
 const saved = ref(false)
 
@@ -35,6 +41,8 @@ onMounted(() => {
     form.education = profile.value.education || ''
     form.experience = profile.value.experience || ''
     form.resumeFilename = profile.value.resumeFilename || ''
+    form.resumeDataUrl = profile.value.resumeDataUrl || ''
+    form.resumeFileSize = profile.value.resumeFileSize || ''
     form.profilePhotoUrl = profile.value.profilePhotoUrl || ''
   }
 })
@@ -139,6 +147,8 @@ function saveProfile() {
     education: form.education,
     experience: form.experience,
     resumeFilename: form.resumeFilename,
+    resumeDataUrl: form.resumeDataUrl,
+    resumeFileSize: form.resumeFileSize,
     profilePhotoUrl: form.profilePhotoUrl,
     updatedAt: new Date().toISOString()
   })
@@ -150,8 +160,63 @@ function saveProfile() {
   }, 500)
 }
 
-function handleResumeDemo() {
-  form.resumeFilename = `${form.fullName.replace(/\s+/g, '_').toLowerCase() || 'candidate'}_resume.pdf`
+function triggerResumeUpload() {
+  resumeError.value = ''
+  resumeFileInput.value?.click()
+}
+
+function handleResumeFileChange(event: Event) {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  resumeError.value = ''
+  const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf'
+  if (!isPdf) {
+    resumeError.value = 'Please select a valid PDF file (.pdf).'
+    return
+  }
+
+  // 10MB limit
+  if (file.size > 10 * 1024 * 1024) {
+    resumeError.value = 'Resume file size should be less than 10MB.'
+    return
+  }
+
+  uploadingResume.value = true
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    form.resumeFilename = file.name
+    form.resumeDataUrl = e.target?.result as string
+    form.resumeFileSize = file.size > 1024 * 1024
+      ? `${(file.size / (1024 * 1024)).toFixed(2)} MB`
+      : `${Math.round(file.size / 1024)} KB`
+    uploadingResume.value = false
+  }
+  reader.onerror = () => {
+    resumeError.value = 'Failed reading PDF file.'
+    uploadingResume.value = false
+  }
+  reader.readAsDataURL(file)
+}
+
+function downloadResume() {
+  if (!form.resumeDataUrl && !form.resumeFilename) return
+  if (form.resumeDataUrl) {
+    const a = document.createElement('a')
+    a.href = form.resumeDataUrl
+    a.download = form.resumeFilename || 'resume.pdf'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
+}
+
+function removeResume() {
+  form.resumeFilename = ''
+  form.resumeDataUrl = ''
+  form.resumeFileSize = ''
+  if (resumeFileInput.value) resumeFileInput.value.value = ''
 }
 </script>
 
@@ -283,20 +348,147 @@ function handleResumeDemo() {
           <UTextarea v-model="form.experience" class="w-full" placeholder="1.5 years as Frontend Developer at TechCorp" :rows="2" />
         </UFormField>
 
-        <UFormField label="Résumé">
-          <div class="flex items-center gap-3">
-            <UInput v-model="form.resumeFilename" class="flex-1" placeholder="No file uploaded" icon="i-lucide-file-text" readonly />
-            <UButton type="button" variant="soft" label="Demo upload" icon="i-lucide-upload" @click="handleResumeDemo" />
-          </div>
-          <p class="mt-1 text-xs text-gray-400">Demo mode: clicking "Demo upload" sets your resume file name.</p>
-        </UFormField>
+        <div>
+          <label class="mb-2 block text-xs font-semibold text-gray-700 dark:text-gray-300">
+            Résumé / CV (PDF)
+          </label>
 
-        <UAlert v-if="saved" color="success" variant="soft" title="Profile saved!" description="Your profile and photo have been updated and synced to the database." icon="i-lucide-check-circle" />
+          <!-- Hidden File Input -->
+          <input
+            ref="resumeFileInput"
+            type="file"
+            accept=".pdf,application/pdf"
+            class="hidden"
+            @change="handleResumeFileChange"
+          >
+
+          <!-- If Resume is Uploaded -->
+          <div
+            v-if="form.resumeFilename"
+            class="flex flex-col gap-3 rounded-xl border border-gray-200 bg-gray-50/75 p-4 dark:border-gray-800 dark:bg-gray-800/40 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div class="flex items-center gap-3">
+              <div class="grid size-11 place-items-center rounded-xl bg-red-100 text-red-600 dark:bg-red-950/60 dark:text-red-400">
+                <UIcon name="i-lucide-file-text" class="size-6" />
+              </div>
+              <div>
+                <p class="font-semibold text-gray-900 dark:text-white">{{ form.resumeFilename }}</p>
+                <div class="flex items-center gap-2 text-xs text-gray-500">
+                  <span>{{ form.resumeFileSize || 'PDF Document' }}</span>
+                  <span>•</span>
+                  <span class="inline-flex items-center gap-1 font-medium text-emerald-600">
+                    <UIcon name="i-lucide-check-circle" class="size-3.5" /> Ready for employers
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <UButton
+                v-if="form.resumeDataUrl"
+                size="xs"
+                color="primary"
+                variant="subtle"
+                icon="i-lucide-eye"
+                label="Preview"
+                @click="showPdfModal = true"
+              />
+              <UButton
+                v-if="form.resumeDataUrl"
+                size="xs"
+                color="neutral"
+                variant="outline"
+                icon="i-lucide-download"
+                label="Download"
+                @click="downloadResume"
+              />
+              <UButton
+                size="xs"
+                color="neutral"
+                variant="ghost"
+                icon="i-lucide-refresh-cw"
+                label="Replace"
+                :loading="uploadingResume"
+                @click="triggerResumeUpload"
+              />
+              <UButton
+                size="xs"
+                color="error"
+                variant="ghost"
+                icon="i-lucide-trash-2"
+                title="Remove resume"
+                @click="removeResume"
+              />
+            </div>
+          </div>
+
+          <!-- If No Resume Uploaded -->
+          <div
+            v-else
+            class="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-gray-50/50 p-6 text-center transition-colors hover:border-primary dark:border-gray-700 dark:bg-gray-800/30"
+          >
+            <div class="grid size-12 place-items-center rounded-full bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-400">
+              <UIcon name="i-lucide-file-up" class="size-6" />
+            </div>
+            <p class="mt-2 text-sm font-semibold text-gray-900 dark:text-white">Upload your PDF Resume</p>
+            <p class="mt-1 text-xs text-gray-500">Accepted formats: .pdf up to 10MB</p>
+            <div class="mt-4">
+              <UButton
+                size="sm"
+                color="primary"
+                icon="i-lucide-upload"
+                label="Choose PDF File"
+                :loading="uploadingResume"
+                @click="triggerResumeUpload"
+              />
+            </div>
+          </div>
+
+          <p v-if="resumeError" class="mt-2 text-xs font-medium text-red-500">{{ resumeError }}</p>
+        </div>
+
+        <UAlert v-if="saved" color="success" variant="soft" title="Profile saved!" description="Your profile, resume, and photo have been updated and synced to the database." icon="i-lucide-check-circle" />
 
         <div class="flex justify-end gap-3 pt-2">
           <UButton type="submit" size="lg" label="Save Profile" icon="i-lucide-save" :loading="saving" />
         </div>
       </form>
     </UCard>
+
+    <!-- PDF Preview Modal -->
+    <div
+      v-if="showPdfModal && form.resumeDataUrl"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+    >
+      <div class="flex h-[90vh] w-full max-w-4xl flex-col rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
+        <div class="mb-0 flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-800">
+          <div class="flex items-center gap-2">
+            <UIcon name="i-lucide-file-text" class="size-5 text-red-500" />
+            <h3 class="font-bold text-gray-900 dark:text-white">{{ form.resumeFilename || 'Resume Preview' }}</h3>
+          </div>
+          <div class="flex items-center gap-2">
+            <UButton
+              size="xs"
+              color="primary"
+              variant="outline"
+              icon="i-lucide-download"
+              label="Download"
+              @click="downloadResume"
+            />
+            <button class="text-gray-400 hover:text-gray-600 dark:hover:text-white" @click="showPdfModal = false">
+              <UIcon name="i-lucide-x" class="size-5" />
+            </button>
+          </div>
+        </div>
+
+        <div class="flex-1 overflow-hidden p-2">
+          <iframe
+            :src="form.resumeDataUrl"
+            class="size-full rounded-xl border border-gray-200 dark:border-gray-800"
+            title="PDF Resume Preview"
+          />
+        </div>
+      </div>
+    </div>
   </div>
 </template>

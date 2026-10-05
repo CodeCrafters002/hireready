@@ -166,3 +166,139 @@ export function generatePasswordResetEmailHtml(params: { name: string; email: st
 </html>
   `.trim()
 }
+
+export function generateUserInvitationEmailHtml(params: {
+  name: string
+  email: string
+  role: string
+  temporaryPassword?: string
+  setupUrl: string
+  loginUrl: string
+}): string {
+  const { name, email, role, temporaryPassword, setupUrl, loginUrl } = params
+
+  let roleTitle = 'Candidate'
+  let roleGradient = 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)'
+  let roleIcon = '🎓'
+  let roleDescription = 'Access job applications, take MCQ qualification assessments, and schedule verified interviews.'
+
+  if (role === 'admin') {
+    roleTitle = 'Super Admin'
+    roleGradient = 'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)'
+    roleIcon = '🛡️'
+    roleDescription = 'Full administrative control over portal users, permissions, jobs, applicant tracking, and system configuration.'
+  } else if (role === 'officer') {
+    roleTitle = 'Placement Officer'
+    roleGradient = 'linear-gradient(135deg, #9333ea 0%, #6b21a8 100%)'
+    roleIcon = '🎖️'
+    roleDescription = 'Track student cohorts, evaluate assessment attempts, conduct mock interviews, and submit candidates to employers.'
+  } else if (role === 'employer') {
+    roleTitle = 'Hiring Employer / Partner'
+    roleGradient = 'linear-gradient(135deg, #059669 0%, #047857 100%)'
+    roleIcon = '🏢'
+    roleDescription = 'Review qualified, pre-screened talent profiles, inspect mock interview recordings, and hire verified candidates.'
+  }
+
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to HireReady</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b; line-height: 1.6;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f4f5f9; padding: 40px 15px;">
+    <tr>
+      <td align="center">
+        <!-- Main Card Container -->
+        <table role="presentation" width="100%" style="max-width: 560px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04); border: 1px solid #e2e8f0;">
+          
+          <!-- Header Banner -->
+          <tr>
+            <td style="background: ${roleGradient}; padding: 36px 36px 32px; text-align: center;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td align="center">
+                    <div style="display: inline-block; width: 48px; height: 48px; line-height: 48px; background-color: rgba(255, 255, 255, 0.2); border-radius: 14px; text-align: center; margin-bottom: 12px;">
+                      <span style="font-size: 26px; color: #ffffff;">${roleIcon}</span>
+                    </div>
+                    <h1 style="margin: 0; color: #ffffff; font-size: 23px; font-weight: 700; letter-spacing: -0.02em;">Welcome to HireReady</h1>
+                    <p style="margin: 6px 0 0; color: #f8fafc; font-size: 13px; font-weight: 500; opacity: 0.95;">
+                      Your ${roleTitle} Account is Ready
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Content Body -->
+          <tr>
+            <td style="padding: 36px 36px 28px;">
+              <p style="margin: 0 0 16px; font-size: 15px; color: #334155;">Hello <strong>${name || 'there'}</strong>,</p>
+              
+              <p style="margin: 0 0 20px; font-size: 14px; color: #64748b; line-height: 1.6;">
+                An administrator has provisioned an official account for you on the <strong>HireReady</strong> platform with the role of <strong style="color: #0f172a;">${roleTitle}</strong>.
+              </p>
+
+              <!-- Role Info Box -->
+              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; margin: 20px 0;">
+                <div style="font-size: 12px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">
+                  ${roleIcon} Role Privileges: ${roleTitle}
+                </div>
+                <div style="font-size: 13px; color: #64748b; line-height: 1.5;">
+                  ${roleDescription}
+                </div>
+              </div>
+
+              <!-- Login Credentials Summary -->
+              <div style="background: #f1f5f9; border-radius: 12px; padding: 20px; margin: 24px 0;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                  <tr>
+                    <td style="padding: 4px 0; font-size: 13px; color: #64748b; width: 35%;">Login Email:</td>
+                    <td style="padding: 4px 0; font-size: 13px; font-weight: 600; color: #0f172a;">${email}</td>
+                  </tr>
+                  ${temporaryPassword ? `
+                  <tr>
+                    <td style="padding: 4px 0; font-size: 13px; color: #64748b;">Temporary Password:</td>
+                    <td style="padding: 4px 0; font-size: 13px; font-family: monospace; font-weight: 700; color: #4f46e5;">${temporaryPassword}</td>
+                  </tr>
+                  ` : ''}
+                </table>
+              </div>
+
+              <!-- Action Buttons -->
+              <div style="text-align: center; margin: 28px 0 16px;">
+                <a href="${loginUrl}" style="display: inline-block; background: ${roleGradient}; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 600; padding: 12px 28px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); margin: 0 6px 10px;">
+                  Sign In to Dashboard &rarr;
+                </a>
+                <a href="${setupUrl}" style="display: inline-block; background: #ffffff; color: #334155; border: 1px solid #cbd5e1; text-decoration: none; font-size: 13px; font-weight: 600; padding: 11px 22px; border-radius: 10px; margin: 0 6px 10px;">
+                  Set Custom Password
+                </a>
+              </div>
+
+              <!-- Guidance Note -->
+              <p style="margin: 20px 0 0; font-size: 12px; color: #94a3b8; text-align: center;">
+                For enhanced security, we recommend updating your password upon your first sign in.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f8fafc; padding: 20px 36px; border-top: 1px solid #f1f5f9; text-align: center;">
+              <p style="margin: 0; font-size: 12px; color: #94a3b8;">
+                HireReady · Qualification-First Job & Placement Platform<br>
+                Need assistance? Contact your system administrator or reply to this message.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim()
+}

@@ -52,6 +52,25 @@ function handleDecision(appId: string, decision: 'selected' | 'rejected') {
     })
   }
 }
+
+const pdfPreviewUrl = ref<string | null>(null)
+const pdfPreviewTitle = ref<string>('')
+
+function previewResume(url?: string, filename?: string) {
+  if (!url) return
+  pdfPreviewUrl.value = url
+  pdfPreviewTitle.value = filename || 'Candidate Resume'
+}
+
+function downloadCandidateResume(url?: string, filename?: string) {
+  if (!url) return
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename || 'candidate_resume.pdf'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
 </script>
 
 <template>
@@ -170,9 +189,33 @@ function handleDecision(appId: string, decision: 'selected' | 'rejected') {
                 <p v-if="getCandidateProfile(app.candidateId)?.experience">
                   <span class="font-medium text-gray-500">Experience:</span> {{ getCandidateProfile(app.candidateId)?.experience }}
                 </p>
-                <p v-if="getCandidateProfile(app.candidateId)?.resumeFilename" class="text-xs text-primary">
-                  📄 Résumé: {{ getCandidateProfile(app.candidateId)?.resumeFilename }}
-                </p>
+                <div v-if="getCandidateProfile(app.candidateId)?.resumeFilename" class="mt-2 flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50/80 p-2 text-xs dark:border-gray-800 dark:bg-gray-800/40">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <UIcon name="i-lucide-file-text" class="size-4 shrink-0 text-red-500" />
+                    <span class="truncate font-medium text-gray-900 dark:text-white">{{ getCandidateProfile(app.candidateId)?.resumeFilename }}</span>
+                    <span v-if="getCandidateProfile(app.candidateId)?.resumeFileSize" class="text-[10px] text-gray-400">({{ getCandidateProfile(app.candidateId)?.resumeFileSize }})</span>
+                  </div>
+                  <div class="flex items-center gap-1 shrink-0 ml-2">
+                    <UButton
+                      v-if="getCandidateProfile(app.candidateId)?.resumeDataUrl"
+                      size="xs"
+                      color="primary"
+                      variant="ghost"
+                      icon="i-lucide-eye"
+                      label="View"
+                      @click="previewResume(getCandidateProfile(app.candidateId)?.resumeDataUrl, getCandidateProfile(app.candidateId)?.resumeFilename)"
+                    />
+                    <UButton
+                      v-if="getCandidateProfile(app.candidateId)?.resumeDataUrl"
+                      size="xs"
+                      color="neutral"
+                      variant="ghost"
+                      icon="i-lucide-download"
+                      title="Download"
+                      @click="downloadCandidateResume(getCandidateProfile(app.candidateId)?.resumeDataUrl, getCandidateProfile(app.candidateId)?.resumeFilename)"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -199,6 +242,42 @@ function handleDecision(appId: string, decision: 'selected' | 'rejected') {
             </div>
           </div>
         </UCard>
+      </div>
+    </div>
+
+    <!-- PDF Preview Modal -->
+    <div
+      v-if="pdfPreviewUrl"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+    >
+      <div class="flex h-[90vh] w-full max-w-4xl flex-col rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
+        <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-800">
+          <div class="flex items-center gap-2">
+            <UIcon name="i-lucide-file-text" class="size-5 text-red-500" />
+            <h3 class="font-bold text-gray-950 dark:text-white">{{ pdfPreviewTitle }}</h3>
+          </div>
+          <div class="flex items-center gap-2">
+            <UButton
+              size="xs"
+              color="primary"
+              variant="outline"
+              icon="i-lucide-download"
+              label="Download"
+              @click="downloadCandidateResume(pdfPreviewUrl, pdfPreviewTitle)"
+            />
+            <button class="text-gray-400 hover:text-gray-600 dark:hover:text-white" @click="pdfPreviewUrl = null">
+              <UIcon name="i-lucide-x" class="size-5" />
+            </button>
+          </div>
+        </div>
+
+        <div class="flex-1 overflow-hidden p-2">
+          <iframe
+            :src="pdfPreviewUrl"
+            class="size-full rounded-xl border border-gray-200 dark:border-gray-800"
+            title="Candidate Resume Preview"
+          />
+        </div>
       </div>
     </div>
   </div>

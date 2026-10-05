@@ -25,6 +25,8 @@ const CandidateProfileSchema = new Schema({
   education: { type: String, default: '' },
   experience: { type: String, default: '' },
   resumeFilename: { type: String, default: '' },
+  resumeDataUrl: { type: String, default: '' },
+  resumeFileSize: { type: String, default: '' },
   profilePhotoUrl: { type: String, default: '' },
   updatedAt: { type: String, default: () => new Date().toISOString() }
 })

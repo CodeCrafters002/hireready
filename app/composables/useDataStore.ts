@@ -89,18 +89,35 @@ export function useDataStore() {
   function saveUsers(users: User[]): void { write(KEYS.users, users) }
   function getUserById(id: string): User | undefined { return getUsers().find(u => u.id === id) }
   function getUserByEmail(email: string): User | undefined { return getUsers().find(u => u.email === email) }
-  function createUser(data: Omit<User, 'id' | 'createdAt'>): User {
+  async function createUser(data: Omit<User, 'id' | 'createdAt'> & { temporaryPassword?: string; sendInviteEmail?: boolean }): Promise<User & { emailSent?: boolean }> {
     const users = getUsers()
-    const user: User = { ...data, id: uid('user'), createdAt: new Date().toISOString() }
+    const user: User = {
+      id: uid('user'),
+      name: data.name,
+      email: data.email,
+      role: data.role,
+      passwordHash: data.temporaryPassword || data.passwordHash || 'demo_hash',
+      createdAt: new Date().toISOString()
+    }
     users.push(user)
     saveUsers(users)
 
-    // Sync to MongoDB
-    $fetch('/api/users', { method: 'POST', body: user }).catch(err => {
+    let emailSent = false
+    try {
+      const res = await $fetch<{ emailSent?: boolean }>('/api/users', {
+        method: 'POST',
+        body: {
+          ...user,
+          temporaryPassword: data.temporaryPassword,
+          sendInviteEmail: data.sendInviteEmail
+        }
+      })
+      emailSent = Boolean(res?.emailSent)
+    } catch (err) {
       console.warn('[DataStore] MongoDB createUser error:', err)
-    })
+    }
 
-    return user
+    return { ...user, emailSent }
   }
   function updateUserRole(id: string, role: UserRole): User | undefined {
     const users = getUsers()

@@ -41,11 +41,13 @@ const filteredUsers = computed(() => {
 const showModal = ref(false)
 const modalLoading = ref(false)
 const modalError = ref('')
+const successNotification = ref('')
 const form = reactive({
   name: '',
   email: '',
   password: '',
-  role: 'candidate' as UserRole
+  role: 'candidate' as UserRole,
+  sendInviteEmail: true
 })
 
 function openCreateModal(defaultRole?: UserRole) {
@@ -54,6 +56,7 @@ function openCreateModal(defaultRole?: UserRole) {
   form.email = ''
   form.password = ''
   form.role = defaultRole || 'candidate'
+  form.sendInviteEmail = true
   showModal.value = true
 }
 
@@ -72,11 +75,13 @@ async function handleCreateUser() {
 
   modalLoading.value = true
   try {
-    store.createUser({
+    const createdUser = await store.createUser({
       name: form.name.trim(),
       email: form.email.trim().toLowerCase(),
       role: form.role,
-      passwordHash: 'demo_hash'
+      passwordHash: form.password || 'demo_hash',
+      temporaryPassword: form.password || undefined,
+      sendInviteEmail: form.sendInviteEmail
     })
 
     // If candidate, initialize profile
@@ -100,6 +105,14 @@ async function handleCreateUser() {
     }
 
     showModal.value = false
+    if (createdUser.emailSent) {
+      successNotification.value = `User "${form.name}" created and a welcome invitation email was sent to ${form.email}!`
+    } else {
+      successNotification.value = `User "${form.name}" (${form.role.toUpperCase()}) created successfully!`
+    }
+    setTimeout(() => {
+      successNotification.value = ''
+    }, 6000)
   } catch (err: any) {
     modalError.value = err.message || 'Failed to create user.'
   } finally {
@@ -157,6 +170,18 @@ function roleLabel(role: UserRole) {
           @click="openCreateModal()"
         />
       </div>
+    </div>
+
+    <!-- Success Banner -->
+    <div
+      v-if="successNotification"
+      class="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 shadow-sm dark:border-emerald-800/50 dark:bg-emerald-950/40 dark:text-emerald-200"
+    >
+      <UIcon name="i-lucide-check-circle" class="size-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+      <span class="font-medium">{{ successNotification }}</span>
+      <button class="ml-auto text-emerald-600 hover:text-emerald-800" @click="successNotification = ''">
+        <UIcon name="i-lucide-x" class="size-4" />
+      </button>
     </div>
 
     <!-- Stat cards -->
@@ -420,6 +445,30 @@ function roleLabel(role: UserRole) {
                 <span>Employer / Client</span>
               </label>
             </div>
+          </div>
+
+          <div>
+            <label class="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-300">
+              Initial Password <span class="text-xs font-normal text-gray-400">(Optional)</span>
+            </label>
+            <input
+              v-model="form.password"
+              type="password"
+              placeholder="Leave blank to let user set custom password via email"
+              class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+            >
+          </div>
+
+          <div class="flex items-center gap-2.5 rounded-lg border border-gray-200 bg-gray-50/70 p-3 dark:border-gray-800 dark:bg-gray-800/40">
+            <input
+              id="sendInvite"
+              v-model="form.sendInviteEmail"
+              type="checkbox"
+              class="size-4 rounded border-gray-300 text-primary focus:ring-primary dark:border-gray-700"
+            >
+            <label for="sendInvite" class="cursor-pointer text-xs font-medium text-gray-700 dark:text-gray-300">
+              Send branded Welcome & Invitation Email to their Gmail/inbox
+            </label>
           </div>
 
           <div class="flex items-center justify-end gap-2 pt-2">
