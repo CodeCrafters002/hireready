@@ -28,6 +28,7 @@ const CandidateProfileSchema = new Schema({
   resumeDataUrl: { type: String, default: '' },
   resumeFileSize: { type: String, default: '' },
   profilePhotoUrl: { type: String, default: '' },
+  upiId: { type: String, default: '' },
   updatedAt: { type: String, default: () => new Date().toISOString() }
 })
 
@@ -91,9 +92,52 @@ const AssessmentQuestionSchema = new Schema({
   createdAt: { type: String, default: () => new Date().toISOString() }
 })
 
+// ─── 6. Gig (1-Day Shift / Exam Duty) Schema ────────────────────────────────
+const GigSchema = new Schema({
+  id: { type: String, required: true, unique: true, index: true },
+  title: { type: String, required: true },
+  organization: { type: String, required: true },
+  category: { type: String, default: 'exam_duty', index: true },
+  date: { type: String, required: true },
+  shiftTime: { type: String, required: true },
+  location: { type: String, required: true },
+  city: { type: String, required: true, index: true },
+  dailyPay: { type: Number, required: true },
+  openings: { type: Number, required: true },
+  filled: { type: Number, default: 0 },
+  description: { type: String, default: '' },
+  responsibilities: { type: [String], default: [] },
+  instructions: { type: String, default: '' },
+  escrowStatus: { type: String, default: 'deposited' }, // 'deposited' | 'released' | 'pending'
+  status: { type: String, default: 'open', index: true }, // 'open' | 'in_progress' | 'completed' | 'cancelled'
+  postedBy: { type: String, required: true, index: true },
+  createdAt: { type: String, default: () => new Date().toISOString() }
+})
+
+// ─── 7. Gig Application Schema ──────────────────────────────────────────────
+const GigApplicationSchema = new Schema({
+  id: { type: String, required: true, unique: true, index: true },
+  gigId: { type: String, required: true, index: true },
+  candidateId: { type: String, required: true, index: true },
+  candidateName: { type: String, required: true },
+  candidateEmail: { type: String, required: true },
+  candidateMobile: { type: String, default: '' },
+  upiId: { type: String, default: '' },
+  college: { type: String, default: '' },
+  status: { type: String, default: 'applied', index: true },
+  payoutAmount: { type: Number, required: true },
+  payoutStatus: { type: String, default: 'escrowed' }, // 'escrowed' | 'approved' | 'paid'
+  appliedAt: { type: String, default: () => new Date().toISOString() },
+  checkedInAt: { type: String, default: null },
+  completedAt: { type: String, default: null }
+})
+
 // Mongoose model caching for serverless environments
 export const UserModel = mongoose.models.User || mongoose.model('User', UserSchema)
 export const CandidateProfileModel = mongoose.models.CandidateProfile || mongoose.model('CandidateProfile', CandidateProfileSchema)
 export const JobModel = mongoose.models.Job || mongoose.model('Job', JobSchema)
 export const ApplicationModel = mongoose.models.Application || mongoose.model('Application', ApplicationSchema)
 export const AssessmentQuestionModel = mongoose.models.AssessmentQuestion || mongoose.model('AssessmentQuestion', AssessmentQuestionSchema)
+export const GigModel = mongoose.models.Gig || mongoose.model('Gig', GigSchema)
+export const GigApplicationModel = mongoose.models.GigApplication || mongoose.model('GigApplication', GigApplicationSchema)
+

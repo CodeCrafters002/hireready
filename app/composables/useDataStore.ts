@@ -8,7 +8,10 @@ import type {
   AssessmentAttempt,
   InterviewSlot,
   InterviewFeedback,
-  AppNotification
+  AppNotification,
+  Gig,
+  GigApplication,
+  GigCategory
 } from '~/types/portal'
 
 // ─── Keys ─────────────────────────────────────────────────────────────────────
@@ -23,6 +26,8 @@ const KEYS = {
   interviewSlots: 'hr_interview_slots',
   interviewFeedback: 'hr_interview_feedback',
   notifications: 'hr_notifications',
+  gigs: 'hr_gigs',
+  gigApplications: 'hr_gig_applications',
   seeded: 'hr_seeded'
 } as const
 
@@ -107,11 +112,13 @@ export function useDataStore() {
       await $fetch('/api/seed', { method: 'POST', body: { force: false } }).catch(() => null)
 
       // 2. Fetch latest data in parallel from MongoDB
-      const [jobsData, appsData, questionsData, usersData] = await Promise.all([
+      const [jobsData, appsData, questionsData, usersData, gigsData, gigAppsData] = await Promise.all([
         $fetch<Job[]>('/api/jobs').catch(() => null),
         $fetch<Application[]>('/api/applications').catch(() => null),
         $fetch<AssessmentQuestion[]>('/api/questions?all=true').catch(() => null),
-        $fetch<User[]>('/api/users').catch(() => null)
+        $fetch<User[]>('/api/users').catch(() => null),
+        $fetch<Gig[]>('/api/gigs').catch(() => null),
+        $fetch<GigApplication[]>('/api/gigs/applications').catch(() => null)
       ])
 
       if (jobsData && jobsData.length > 0) {
@@ -125,6 +132,12 @@ export function useDataStore() {
       }
       if (usersData && usersData.length > 0) {
         saveUsers(usersData)
+      }
+      if (gigsData && gigsData.length > 0) {
+        saveGigs(gigsData)
+      }
+      if (gigAppsData && gigAppsData.length > 0) {
+        saveGigApplications(gigAppsData)
       }
 
       purgeDemoData()
@@ -472,6 +485,151 @@ export function useDataStore() {
     saveNotifications(notifs)
   }
 
+  // ── 1-Day Micro-Gigs / Campus Duty ───────────────────────────────────────
+  function getGigs(): Gig[] { return read<Gig>(KEYS.gigs) }
+  function saveGigs(gigs: Gig[]): void { write(KEYS.gigs, gigs) }
+  function getGigById(id: string): Gig | undefined { return getGigs().find(g => g.id === id) }
+  async function createGig(data: Omit<Gig, 'id' | 'createdAt' | 'filled'>): Promise<Gig> {
+    const id = uid('gig')
+    const gig: Gig = {
+      ...data,
+      id,
+      filled: 0,
+      createdAt: new Date().toISOString()
+    }
+    const gigs = getGigs()
+    gigs.unshift(gig)
+    saveGigs(gigs)
+
+    try {
+      await $fetch('/api/gigs', { method: 'POST', body: gig })
+    } catch (err) {
+      console.warn('[DataStore] MongoDB createGig error:', err)
+    }
+
+    return gig
+  }
+  async function updateGig(id: string, updates: Partial<Gig>): Promise<Gig | undefined> {
+    const gigs = getGigs()
+    const index = gigs.findIndex(g => g.id === id)
+    if (index < 0) return undefined
+    const updated = { ...gigs[index], ...updates } as Gig
+    gigs[index] = updated
+    saveGigs(gigs)
+
+    try {
+      await $fetch(`/api/gigs/${id}`, { method: 'PUT', body: updates })
+    } catch (err) {
+      console.warn('[DataStore] MongoDB updateGig error:', err)
+    }
+
+    return updated
+  }
+
+  // ── Gig Applications ─────────────────────────────────────────────────────
+  function getGigApplications(): GigApplication[] { return read<GigApplication>(KEYS.gigApplications) }
+  function saveGigApplications(apps: GigApplication[]): void { write(KEYS.gigApplications, apps) }
+  function getGigApplicationsByGig(gigId: string): GigApplication[] {
+    return getGigApplications().filter(a => a.gigId === gigId)
+  }
+  function getGigApplicationsByCandidate(candidateId: string): GigApplication[] {
+    return getGigApplications().filter(a => a.candidateId === candidateId)
+  }
+  async function applyToGig(data: {
+    gigId: string
+    candidateId: string
+    candidateName: string
+    candidateEmail: string
+    candidateMobile?: string
+    upiId: string
+    college?: string
+    payoutAmount?: number
+  }): Promise<GigApplication> {
+    const existing = getGigApplications().find(a => a.gigId === data.gigId && a.candidateId === data.candidateId)
+    if (existing) {
+      return existing
+    }
+
+    const app: GigApplication = {
+      id: uid('gig-app'),
+      gigId: data.gigId,
+      candidateId: data.candidateId,
+      candidateName: data.candidateName,
+      candidateEmail: data.candidateEmail,
+      candidateMobile: data.candidateMobile || '',
+      upiId: data.upiId,
+      college: data.college || '',
+      status: 'applied',
+      payoutAmount: data.payoutAmount || 0,
+      payoutStatus: 'escrowed',
+      appliedAt: new Date().toISOString()
+    }
+
+    const apps = getGigApplications()
+    apps.unshift(app)
+    saveGigApplications(apps)
+
+    try {
+      const serverApp = await $fetch<GigApplication>('/api/gigs/applications', {
+        method: 'POST',
+        body: data
+      })
+      if (serverApp) {
+        const idx = apps.findIndex(a => a.id === app.id)
+        if (idx >= 0) {
+          apps[idx] = serverApp
+          saveGigApplications(apps)
+        }
+        return serverApp
+      }
+    } catch (err) {
+      console.warn('[DataStore] MongoDB applyToGig error:', err)
+    }
+
+    return app
+  }
+
+  async function updateGigApplicationStatus(id: string, updates: Partial<GigApplication>): Promise<GigApplication | undefined> {
+    const apps = getGigApplications()
+    const index = apps.findIndex(a => a.id === id)
+    if (index < 0) return undefined
+    const current = apps[index]
+    const updated = { ...current, ...updates } as GigApplication
+
+    if (updates.status === 'checked_in' && !updated.checkedInAt) {
+      updated.checkedInAt = new Date().toISOString()
+    }
+    if (updates.status === 'completed' && !updated.completedAt) {
+      updated.completedAt = new Date().toISOString()
+      updated.payoutStatus = 'approved'
+    }
+    if (updates.status === 'paid') {
+      updated.payoutStatus = 'paid'
+    }
+
+    apps[index] = updated
+    saveGigApplications(apps)
+
+    // If accepted, increment filled count on gig
+    if (updates.status === 'accepted' && current?.status !== 'accepted') {
+      const gig = getGigById(updated.gigId)
+      if (gig) {
+        await updateGig(gig.id, { filled: (gig.filled || 0) + 1 })
+      }
+    }
+
+    try {
+      await $fetch(`/api/gigs/applications/${id}`, {
+        method: 'PUT',
+        body: updates
+      })
+    } catch (err) {
+      console.warn('[DataStore] MongoDB updateGigApplicationStatus error:', err)
+    }
+
+    return updated
+  }
+
   return {
     syncWithDatabase,
     // Users
@@ -494,6 +652,11 @@ export function useDataStore() {
     // Interview Feedback
     getInterviewFeedback, getFeedbackByApplication, createFeedback,
     // Notifications
-    getNotificationsByUser, addNotification, markNotificationRead, markAllNotificationsRead
+    getNotificationsByUser, addNotification, markNotificationRead, markAllNotificationsRead,
+    // 1-Day Gigs & Campus Duties
+    getGigs, saveGigs, getGigById, createGig, updateGig,
+    getGigApplications, saveGigApplications, getGigApplicationsByGig, getGigApplicationsByCandidate,
+    applyToGig, updateGigApplicationStatus
   }
 }
+

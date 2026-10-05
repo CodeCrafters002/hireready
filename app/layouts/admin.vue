@@ -12,7 +12,8 @@ const navItems = [
   { label: 'Payments', icon: 'i-lucide-indian-rupee', to: '/admin/payments' },
   { label: 'MCQ Questions', icon: 'i-lucide-list-checks', to: '/admin/questions' },
   { label: 'MCQ Results', icon: 'i-lucide-bar-chart-3', to: '/admin/results' },
-  { label: 'Interview Slots', icon: 'i-lucide-calendar', to: '/admin/interviews' }
+  { label: 'Interview Slots', icon: 'i-lucide-calendar', to: '/admin/interviews' },
+  { label: '1-Day Gigs & Escrow', icon: 'i-lucide-calendar-clock', to: '/admin/gigs' }
 ]
 
 function isActiveRoute(path: string) {

@@ -25,7 +25,49 @@ export interface CandidateProfile {
   resumeDataUrl?: string
   resumeFileSize?: string
   profilePhotoUrl: string
+  upiId?: string
   updatedAt: string
+}
+
+// ─── 1-Day Micro-Gigs & Duties ────────────────────────────────────────────────
+export type GigCategory = 'exam_duty' | 'event_coordination' | 'technical_support' | 'field_survey' | 'other'
+
+export interface Gig {
+  id: string
+  title: string
+  organization: string
+  category: GigCategory
+  date: string
+  shiftTime: string
+  location: string
+  city: string
+  dailyPay: number
+  openings: number
+  filled: number
+  description: string
+  responsibilities: string[]
+  instructions: string
+  escrowStatus: 'deposited' | 'released' | 'pending'
+  status: 'open' | 'in_progress' | 'completed' | 'cancelled'
+  postedBy: string
+  createdAt: string
+}
+
+export interface GigApplication {
+  id: string
+  gigId: string
+  candidateId: string
+  candidateName: string
+  candidateEmail: string
+  candidateMobile: string
+  upiId: string
+  college: string
+  status: 'applied' | 'accepted' | 'checked_in' | 'completed' | 'paid' | 'rejected'
+  payoutAmount: number
+  payoutStatus: 'escrowed' | 'approved' | 'paid'
+  appliedAt: string
+  checkedInAt?: string
+  completedAt?: string
 }
 
 // ─── Job ──────────────────────────────────────────────────────────────────────

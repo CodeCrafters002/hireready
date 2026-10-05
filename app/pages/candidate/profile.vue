@@ -17,7 +17,8 @@ const form = reactive({
   resumeFilename: '',
   resumeDataUrl: '',
   resumeFileSize: '',
-  profilePhotoUrl: ''
+  profilePhotoUrl: '',
+  upiId: ''
 })
 
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -44,6 +45,7 @@ onMounted(() => {
     form.resumeDataUrl = profile.value.resumeDataUrl || ''
     form.resumeFileSize = profile.value.resumeFileSize || ''
     form.profilePhotoUrl = profile.value.profilePhotoUrl || ''
+    form.upiId = profile.value.upiId || ''
   }
 })
 
@@ -150,6 +152,7 @@ function saveProfile() {
     resumeDataUrl: form.resumeDataUrl,
     resumeFileSize: form.resumeFileSize,
     profilePhotoUrl: form.profilePhotoUrl,
+    upiId: form.upiId,
     updatedAt: new Date().toISOString()
   })
 
@@ -333,6 +336,9 @@ function removeResume() {
           </UFormField>
           <UFormField label="City / Location">
             <UInput v-model="form.city" class="w-full" placeholder="e.g. Bengaluru" icon="i-lucide-map-pin" />
+          </UFormField>
+          <UFormField label="UPI ID (for 1-Day Shift Payouts)" hint="e.g. yourname@okaxis or 9876543210@upi">
+            <UInput v-model="form.upiId" class="w-full" placeholder="e.g. user@okaxis" icon="i-lucide-wallet" />
           </UFormField>
         </div>
 

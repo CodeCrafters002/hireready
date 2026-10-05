@@ -5,6 +5,11 @@ const { currentUser } = useAuth()
 const store = useDataStore()
 
 const applications = computed(() => currentUser.value ? store.getApplicationsByCandidate(currentUser.value.id) : [])
+const gigApplications = computed(() => currentUser.value ? store.getGigApplicationsByCandidate(currentUser.value.id) : [])
+
+function getGigDetails(gigId: string) {
+  return store.getGigById(gigId)
+}
 
 const statusLabel: Record<string, string> = {
   payment_pending: 'Payment Pending',
@@ -61,7 +66,45 @@ function getStepIndex(status: string): number {
       <p class="mt-1 text-gray-500">Track each application through the qualification pipeline.</p>
     </div>
 
+    <!-- ── 1-Day Duty Shifts ──────────────────────────────────────────────── -->
+    <div v-if="gigApplications.length" class="mb-8 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+          <UIcon name="i-lucide-calendar-clock" class="size-5 text-indigo-500" />
+          1-Day Duties &amp; Micro-Shifts
+        </h3>
+        <UBadge color="primary" variant="subtle" :label="`${gigApplications.length} Registered`" size="sm" />
+      </div>
+
+      <div class="grid gap-4 sm:grid-cols-2">
+        <UCard v-for="gApp in gigApplications" :key="gApp.id" class="border-indigo-100 dark:border-indigo-950">
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="font-bold text-gray-900 dark:text-white">{{ getGigDetails(gApp.gigId)?.title || '1-Day Duty' }}</p>
+              <p class="text-xs text-gray-500">{{ getGigDetails(gApp.gigId)?.organization }}</p>
+            </div>
+            <UBadge
+              :color="gApp.status === 'completed' || gApp.status === 'paid' ? 'success' : gApp.status === 'checked_in' ? 'warning' : 'primary'"
+              variant="subtle"
+              :label="gApp.status"
+              class="capitalize"
+              size="xs"
+            />
+          </div>
+
+          <div class="mt-3 rounded-lg bg-gray-50 p-2.5 text-xs text-gray-600 dark:bg-gray-800/40 dark:text-gray-300 space-y-1">
+            <p><span class="font-semibold">Shift Date:</span> {{ getGigDetails(gApp.gigId)?.date }} ({{ getGigDetails(gApp.gigId)?.shiftTime }})</p>
+            <p><span class="font-semibold">Venue:</span> {{ getGigDetails(gApp.gigId)?.location }}, {{ getGigDetails(gApp.gigId)?.city }}</p>
+            <p class="text-emerald-600 dark:text-emerald-400 font-mono font-semibold">
+              Payout: ₹{{ gApp.payoutAmount }} via UPI ({{ gApp.upiId }})
+            </p>
+          </div>
+        </UCard>
+      </div>
+    </div>
+
     <div v-if="applications.length" class="space-y-4">
+      <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">Corporate Job Applications</h3>
       <UCard v-for="app in applications" :key="app.id">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <!-- Job info -->

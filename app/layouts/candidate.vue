@@ -35,6 +35,7 @@ const navItems = [
   { label: 'Assessments', icon: 'i-lucide-file-check', to: '/candidate/assessments' },
   { label: 'Interviews', icon: 'i-lucide-video', to: '/candidate/interviews' },
   { label: 'Notifications', icon: 'i-lucide-bell', to: '/candidate/notifications' },
+  { label: '1-Day Gigs', icon: 'i-lucide-calendar-clock', to: '/gigs' },
   { label: 'Browse Jobs', icon: 'i-lucide-search', to: '/jobs' }
 ]
 

@@ -4,7 +4,8 @@ import {
   CandidateProfileModel,
   JobModel,
   ApplicationModel,
-  AssessmentQuestionModel
+  AssessmentQuestionModel,
+  GigModel
 } from '~~/server/models'
 
 export default defineEventHandler(async (event) => {
@@ -101,20 +102,103 @@ export default defineEventHandler(async (event) => {
     { id: 'q-g-003', question: 'Which practice makes passwords safer?', options: ['Reuse one password', 'Share it with a teammate', 'Use a password manager', 'Save it in public notes'], correctIndex: 2, enabled: true, category: 'Security', createdAt: '2026-01-01T00:00:00Z', jobId: null }
   ]
 
+  const initialGigs = [
+    {
+      id: 'gig-exam-invigilator-delhi',
+      title: 'National Entrance Exam Invigilator / Duty Officer',
+      organization: 'Apex Testing & Assessment Services',
+      category: 'exam_duty',
+      date: '2026-10-18',
+      shiftTime: '07:30 AM – 02:30 PM (7 hrs)',
+      location: 'Delhi Public School, Sector 12, RK Puram',
+      city: 'New Delhi',
+      dailyPay: 1800,
+      openings: 12,
+      filled: 3,
+      description: 'Looking for verified university graduates or postgraduates to serve as exam hall invigilators for the upcoming National Merit Entrance Examination.',
+      responsibilities: [
+        'Verify candidate admit cards, photo identification, and biometric tokens at hall entrance',
+        'Distribute test booklets and OMR sheets in strict serial sequence',
+        'Maintain absolute silence and enforce test-taking integrity guidelines during the 3-hour examination window',
+        'Collect and seal all answer sheets and submit to the Chief Presiding Superintendent'
+      ],
+      instructions: 'Report in formal business attire with original Govt ID proof. Mobile phones and smart watches must be deposited in the secure locker upon check-in at 07:15 AM.',
+      escrowStatus: 'deposited',
+      status: 'open',
+      postedBy: 'admin',
+      createdAt: '2026-10-01T10:00:00Z'
+    },
+    {
+      id: 'gig-tech-lab-assistant-blr',
+      title: 'CBT Lab Technical Proctor & Support',
+      organization: 'EduTech Matrix Digital Centers',
+      category: 'technical_support',
+      date: '2026-10-22',
+      shiftTime: '08:00 AM – 05:00 PM (Full Day)',
+      location: 'Koramangala Tech Center, 5th Block',
+      city: 'Bengaluru',
+      dailyPay: 2200,
+      openings: 8,
+      filled: 2,
+      description: 'Assist in conducting a Computer-Based Test (CBT) certification drive. You will help troubleshoot student workstation logins, LAN connectivity, and browser lockouts.',
+      responsibilities: [
+        'Perform morning terminal diagnostic checks and launch the secure testing browser',
+        'Assist candidates encountering login or network resolution issues',
+        'Monitor server console for workstation dropouts and ping notifications',
+        'Coordinate with the regional IT nodal lead for instant workstation swap if hardware fails'
+      ],
+      instructions: 'B.Tech/BCA/B.Sc Computer Science students or graduates preferred. Lunch and morning refreshments will be provided at the center.',
+      escrowStatus: 'deposited',
+      status: 'open',
+      postedBy: 'admin',
+      createdAt: '2026-10-02T11:30:00Z'
+    },
+    {
+      id: 'gig-annual-tech-summit-mumbai',
+      title: 'India AI Summit Delegate & Badge Coordinator',
+      organization: 'VentureScale Global Events',
+      category: 'event_coordination',
+      date: '2026-10-25',
+      shiftTime: '08:30 AM – 06:00 PM',
+      location: 'Jio World Convention Centre, BKC',
+      city: 'Mumbai',
+      dailyPay: 2500,
+      openings: 15,
+      filled: 5,
+      description: 'Join the guest management operations team for India\'s flagship Artificial Intelligence Summit. Manage delegate badge scanning, VIP lounge assistance, and speaker stage management.',
+      responsibilities: [
+        'Manage front desk QR-code attendee check-in and issue RFID summit badges',
+        'Guide international delegates and key speakers to auditorium halls',
+        'Hand out conference welcome kits and coordinate panel mic runners'
+      ],
+      instructions: 'Smart-casual black/white dress code. All hired volunteers receive instant UPI payment upon shift check-out, plus official Event Coordination Certificate.',
+      escrowStatus: 'deposited',
+      status: 'open',
+      postedBy: 'admin',
+      createdAt: '2026-10-03T14:00:00Z'
+    }
+  ]
+
   if (force) {
     await Promise.all([
       UserModel.deleteMany({}),
       CandidateProfileModel.deleteMany({}),
       JobModel.deleteMany({}),
       ApplicationModel.deleteMany({}),
-      AssessmentQuestionModel.deleteMany({})
+      AssessmentQuestionModel.deleteMany({}),
+      GigModel.deleteMany({})
     ])
   }
+
+  const existingGigsCount = await GigModel.countDocuments()
 
   const insertTasks: Promise<any>[] = [
     JobModel.insertMany(jobs),
     AssessmentQuestionModel.insertMany(questions)
   ]
+  if (existingGigsCount === 0 || force) {
+    insertTasks.push(GigModel.insertMany(initialGigs))
+  }
   if (users.length > 0) insertTasks.push(UserModel.insertMany(users))
   if (profiles.length > 0) insertTasks.push(CandidateProfileModel.insertMany(profiles))
   if (applications.length > 0) insertTasks.push(ApplicationModel.insertMany(applications))
@@ -129,7 +213,9 @@ export default defineEventHandler(async (event) => {
       profiles: profiles.length,
       jobs: jobs.length,
       applications: applications.length,
-      questions: questions.length
+      questions: questions.length,
+      gigs: await GigModel.countDocuments()
     }
   }
 })
+
