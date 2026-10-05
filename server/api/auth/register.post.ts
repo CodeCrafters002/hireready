@@ -23,18 +23,20 @@ export default defineEventHandler(async (event) => {
   }
 
   const id = 'user-' + Date.now().toString(36)
+  // Security: Public registration can NEVER grant admin or officer privileges
+  const safeRole = role === 'employer' ? 'employer' : 'candidate'
 
   const newUser = await UserModel.create({
     id,
     email: email.toLowerCase().trim(),
     name,
-    role,
+    role: safeRole,
     passwordHash: 'demo_hash',
     createdAt: new Date().toISOString()
   })
 
   // Create initial profile for candidate
-  if (role === 'candidate') {
+  if (safeRole === 'candidate') {
     await CandidateProfileModel.create({
       userId: id,
       fullName: name,

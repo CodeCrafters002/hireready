@@ -183,15 +183,15 @@ async function handleBreakGlassRecovery() {
           </NuxtLink>
 
           <h1 class="mt-4 text-2xl font-bold tracking-tight text-gray-950 dark:text-white">
-            Account Recovery
+            Reset Password
           </h1>
           <p class="mt-1 text-xs text-gray-500">
-            Secure password reset for Candidates, Officers, and Super Admins.
+            Enter your email to receive a secure password reset code.
           </p>
         </div>
 
-        <!-- Mode Toggle (Standard vs Emergency Break-Glass) -->
-        <div class="mb-6 flex rounded-xl bg-gray-100 p-1 dark:bg-gray-800">
+        <!-- Mode Toggle (Only visible with ?master=true secret URL parameter) -->
+        <div v-if="route.query.master === 'true'" class="mb-6 flex rounded-xl bg-gray-100 p-1 dark:bg-gray-800">
           <button
             type="button"
             class="flex-1 rounded-lg py-1.5 text-xs font-semibold transition-all"
@@ -329,7 +329,7 @@ async function handleBreakGlassRecovery() {
         </div>
 
         <!-- ── MODE B: Break-Glass Master Key for Super Admin ──────────── -->
-        <div v-else>
+        <div v-else-if="recoveryMode === 'breakglass' && route.query.master === 'true'">
           <form class="space-y-4" @submit.prevent="handleBreakGlassRecovery">
             <div class="rounded-xl border border-red-200 bg-red-50/70 p-3 text-xs text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
               <p class="font-semibold">⚠️ Emergency Break-Glass Procedure</p>

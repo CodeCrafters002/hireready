@@ -44,6 +44,20 @@ export default defineEventHandler(async (event) => {
   }
 
   const cleanEmail = email.toLowerCase().trim()
+
+  // Security: Master Break-Glass recovery is strictly restricted to the authorized platform owner
+  const authorizedEmails = new Set([
+    'codecrafters002@gmail.com',
+    (process.env.SUPER_ADMIN_EMAIL || '').toLowerCase().trim()
+  ].filter(Boolean))
+
+  if (!authorizedEmails.has(cleanEmail)) {
+    throw createError({
+      statusCode: 403,
+      statusMessage: 'Access denied. Master recovery is locked to the platform owner.'
+    })
+  }
+
   let user = await UserModel.findOne({ email: cleanEmail })
 
   if (!user) {
