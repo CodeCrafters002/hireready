@@ -7,6 +7,10 @@ const UserSchema = new Schema({
   name: { type: String, required: true },
   role: { type: String, enum: ['candidate', 'admin', 'officer', 'employer'], default: 'candidate' },
   passwordHash: { type: String, required: true },
+  passwordResetToken: { type: String, default: null },
+  passwordResetOtp: { type: String, default: null },
+  passwordResetExpires: { type: Date, default: null },
+  recoveryKeyUsedAt: { type: String, default: null },
   createdAt: { type: String, default: () => new Date().toISOString() }
 })
 

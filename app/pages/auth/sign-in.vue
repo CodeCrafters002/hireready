@@ -90,7 +90,12 @@ const demoAccounts = [
 
           <!-- Password -->
           <div>
-            <label class="mb-1.5 block text-xs font-semibold text-gray-700 dark:text-gray-300">Password</label>
+            <div class="mb-1.5 flex items-center justify-between">
+              <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300">Password</label>
+              <NuxtLink to="/auth/forgot-password" class="text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400">
+                Forgot / Recover?
+              </NuxtLink>
+            </div>
             <div class="relative">
               <UIcon name="i-lucide-lock" class="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
               <input
