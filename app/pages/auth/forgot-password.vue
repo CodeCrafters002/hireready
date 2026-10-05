@@ -121,16 +121,39 @@ async function handleBreakGlassRecovery() {
 
   loading.value = true
   try {
+    const cleanMasterKey = form.masterKey.trim().replace(/^["']|["']$/g, '')
+    const cleanEmail = form.email.trim().toLowerCase()
+
     const res = await $fetch<{ success: boolean; message: string }>('/api/auth/admin-recovery', {
       method: 'POST',
       body: {
-        email: form.email.trim(),
-        recoveryKey: form.masterKey.trim(),
+        email: cleanEmail,
+        recoveryKey: cleanMasterKey,
         newPassword: form.newPassword
       }
     })
 
-    successMessage.value = res.message || 'Admin account successfully recovered!'
+    // Synchronize local store
+    try {
+      const store = useDataStore()
+      const existing = store.getUserByEmail(cleanEmail)
+      if (existing) {
+        store.updateUserRole(existing.id, 'admin')
+      } else {
+        store.saveUsers([...store.getUsers(), {
+          id: `user-admin-${Date.now()}`,
+          name: cleanEmail.split('@')[0] || 'Super Admin',
+          email: cleanEmail,
+          role: 'admin',
+          passwordHash: form.newPassword,
+          createdAt: new Date().toISOString()
+        }])
+      }
+    } catch (e) {
+      console.warn('[AdminRecovery] Store sync note:', e)
+    }
+
+    successMessage.value = res.message || 'Super Admin access granted successfully!'
     setTimeout(() => {
       navigateTo('/auth/sign-in?reset=success')
     }, 2000)
@@ -335,13 +358,22 @@ async function handleBreakGlassRecovery() {
                 <UIcon name="i-lucide-key-round" class="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-red-500" />
                 <input
                   v-model="form.masterKey"
-                  type="password"
+                  type="text"
                   required
-                  placeholder="Enter ADMIN_RECOVERY_KEY"
-                  class="w-full rounded-xl border border-gray-200 bg-white/80 py-2.5 pl-9 pr-3 text-sm text-gray-900 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 dark:border-gray-700 dark:bg-gray-800/80 dark:text-white"
+                  placeholder="Enter Master Recovery Key"
+                  class="w-full rounded-xl border border-gray-200 bg-white/80 py-2.5 pl-9 pr-3 font-mono text-sm text-gray-900 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 dark:border-gray-700 dark:bg-gray-800/80 dark:text-white"
                 >
               </div>
-              <p class="mt-1 text-[11px] text-gray-400">Default key: <code class="rounded bg-gray-100 px-1 dark:bg-gray-800">HireReady-Admin-Recovery-2026!</code></p>
+              <div class="mt-2 flex items-center justify-between text-[11px] text-gray-500">
+                <span>Key: <code class="rounded bg-gray-100 px-1 dark:bg-gray-800">HireReady-Admin-Recovery-2026!</code></span>
+                <button
+                  type="button"
+                  class="rounded bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-600 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-400"
+                  @click="form.masterKey = 'HireReady-Admin-Recovery-2026!'"
+                >
+                  Auto-fill Key
+                </button>
+              </div>
             </div>
 
             <div>
