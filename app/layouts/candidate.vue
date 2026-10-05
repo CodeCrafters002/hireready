@@ -20,7 +20,8 @@ const profileCompletion = computed(() => {
     profile.value.skills.length > 0 ? 'yes' : '',
     profile.value.education,
     profile.value.experience,
-    profile.value.resumeFilename
+    profile.value.resumeFilename,
+    profile.value.profilePhotoUrl
   ]
   return Math.round((fields.filter(Boolean).length / fields.length) * 100)
 })
@@ -62,8 +63,19 @@ function isActiveRoute(path: string) {
         <!-- Profile summary -->
         <div class="border-b border-gray-200 p-4 dark:border-gray-800">
           <div class="flex items-center gap-3">
-            <div class="grid size-10 place-items-center rounded-full bg-primary-100 text-sm font-bold text-primary dark:bg-primary-900">
-              {{ currentUser?.name?.charAt(0) || 'C' }}
+            <div class="relative size-10 shrink-0 overflow-hidden rounded-full border border-gray-200 dark:border-gray-700">
+              <img
+                v-if="profile?.profilePhotoUrl"
+                :src="profile.profilePhotoUrl"
+                class="size-full object-cover"
+                alt="Profile picture"
+              >
+              <div
+                v-else
+                class="grid size-full place-items-center bg-primary-100 text-sm font-bold text-primary dark:bg-primary-900"
+              >
+                {{ currentUser?.name?.charAt(0) || 'C' }}
+              </div>
             </div>
             <div class="min-w-0">
               <p class="truncate text-sm font-semibold text-gray-950 dark:text-white">{{ currentUser?.name }}</p>

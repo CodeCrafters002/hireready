@@ -14,35 +14,121 @@ const form = reactive({
   skills: '',
   education: '',
   experience: '',
-  resumeFilename: ''
+  resumeFilename: '',
+  profilePhotoUrl: ''
 })
 
+const fileInput = ref<HTMLInputElement | null>(null)
+const uploadingPhoto = ref(false)
+const photoError = ref('')
 const saving = ref(false)
 const saved = ref(false)
 
 // Load profile data
 onMounted(() => {
   if (profile.value) {
-    form.fullName = profile.value.fullName
-    form.email = profile.value.email
-    form.mobile = profile.value.mobile
-    form.city = profile.value.city
-    form.skills = profile.value.skills.join(', ')
-    form.education = profile.value.education
-    form.experience = profile.value.experience
-    form.resumeFilename = profile.value.resumeFilename
+    form.fullName = profile.value.fullName || ''
+    form.email = profile.value.email || ''
+    form.mobile = profile.value.mobile || ''
+    form.city = profile.value.city || ''
+    form.skills = profile.value.skills?.join(', ') || ''
+    form.education = profile.value.education || ''
+    form.experience = profile.value.experience || ''
+    form.resumeFilename = profile.value.resumeFilename || ''
+    form.profilePhotoUrl = profile.value.profilePhotoUrl || ''
   }
 })
 
+// Calculate profile completion percentage
 const profileCompletion = computed(() => {
-  const fields = [form.fullName, form.email, form.mobile, form.city, form.skills, form.education, form.experience, form.resumeFilename]
+  const fields = [
+    form.fullName,
+    form.email,
+    form.mobile,
+    form.city,
+    form.skills,
+    form.education,
+    form.experience,
+    form.resumeFilename,
+    form.profilePhotoUrl
+  ]
   return Math.round((fields.filter(Boolean).length / fields.length) * 100)
 })
+
+function triggerFileInput() {
+  photoError.value = ''
+  fileInput.value?.click()
+}
+
+function handlePhotoChange(event: Event) {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  photoError.value = ''
+
+  if (!file.type.startsWith('image/')) {
+    photoError.value = 'Please select a valid image file (JPG, PNG, WEBP).'
+    return
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    photoError.value = 'File size should be less than 5MB.'
+    return
+  }
+
+  uploadingPhoto.value = true
+
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    const img = new Image()
+    img.onload = () => {
+      // Compress and scale photo to max 320x320 for optimal performance & MongoDB storage
+      const canvas = document.createElement('canvas')
+      const maxDim = 320
+      let width = img.width
+      let height = img.height
+
+      if (width > height) {
+        if (width > maxDim) {
+          height = Math.round((height * maxDim) / width)
+          width = maxDim
+        }
+      } else {
+        if (height > maxDim) {
+          width = Math.round((width * maxDim) / height)
+          height = maxDim
+        }
+      }
+
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, width, height)
+        form.profilePhotoUrl = canvas.toDataURL('image/jpeg', 0.85)
+      }
+      uploadingPhoto.value = false
+    }
+    img.src = e.target?.result as string
+  }
+  reader.onerror = () => {
+    photoError.value = 'Failed reading image file.'
+    uploadingPhoto.value = false
+  }
+  reader.readAsDataURL(file)
+}
+
+function removePhoto() {
+  form.profilePhotoUrl = ''
+  if (fileInput.value) fileInput.value.value = ''
+}
 
 function saveProfile() {
   if (!currentUser.value) return
   saving.value = true
   saved.value = false
+
   store.upsertProfile({
     userId: currentUser.value.id,
     fullName: form.fullName,
@@ -53,9 +139,10 @@ function saveProfile() {
     education: form.education,
     experience: form.experience,
     resumeFilename: form.resumeFilename,
-    profilePhotoUrl: '',
+    profilePhotoUrl: form.profilePhotoUrl,
     updatedAt: new Date().toISOString()
   })
+
   setTimeout(() => {
     saving.value = false
     saved.value = true
@@ -64,40 +151,109 @@ function saveProfile() {
 }
 
 function handleResumeDemo() {
-  form.resumeFilename = `${form.fullName.replace(/\s+/g, '_').toLowerCase()}_resume.pdf`
+  form.resumeFilename = `${form.fullName.replace(/\s+/g, '_').toLowerCase() || 'candidate'}_resume.pdf`
 }
 </script>
 
 <template>
-  <div class="mx-auto max-w-3xl">
-    <div class="mb-6">
+  <div class="mx-auto max-w-3xl space-y-6">
+    <div>
       <h2 class="text-2xl font-bold text-gray-950 dark:text-white">My Profile</h2>
-      <p class="mt-1 text-gray-500">Keep your profile updated for the best results.</p>
+      <p class="mt-1 text-sm text-gray-500">
+        Update your personal details, resume, and profile picture to stand out to employers.
+      </p>
     </div>
 
-    <!-- Completion bar -->
-    <UCard class="mb-6">
-      <div class="flex items-center gap-4">
-        <div class="grid size-14 shrink-0 place-items-center rounded-full bg-primary-100 text-xl font-bold text-primary dark:bg-primary-900">
-          {{ currentUser?.name?.charAt(0) || '?' }}
+    <!-- Completion Card with Avatar Upload -->
+    <UCard>
+      <div class="flex flex-col gap-6 sm:flex-row sm:items-center">
+        <!-- Photo Upload Box -->
+        <div class="relative group mx-auto sm:mx-0">
+          <input
+            ref="fileInput"
+            type="file"
+            accept="image/png, image/jpeg, image/webp"
+            class="hidden"
+            @change="handlePhotoChange"
+          >
+
+          <div
+            class="relative size-24 cursor-pointer overflow-hidden rounded-full border-2 border-dashed border-gray-300 transition-all hover:border-primary dark:border-gray-700"
+            @click="triggerFileInput"
+          >
+            <img
+              v-if="form.profilePhotoUrl"
+              :src="form.profilePhotoUrl"
+              alt="Profile photo"
+              class="size-full object-cover"
+            >
+            <div
+              v-else
+              class="grid size-full place-items-center bg-gradient-to-br from-indigo-500 to-purple-600 text-2xl font-bold text-white"
+            >
+              {{ form.fullName ? form.fullName.charAt(0).toUpperCase() : (currentUser?.name?.charAt(0) || 'C') }}
+            </div>
+
+            <!-- Hover overlay -->
+            <div class="absolute inset-0 flex flex-col items-center justify-center bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100">
+              <UIcon name="i-lucide-camera" class="size-6" />
+              <span class="mt-1 text-[10px] font-semibold">Change</span>
+            </div>
+          </div>
+
+          <button
+            v-if="form.profilePhotoUrl"
+            type="button"
+            class="absolute -right-1 -top-1 grid size-6 place-items-center rounded-full bg-red-600 text-white shadow-md hover:bg-red-700"
+            title="Remove photo"
+            @click.stop="removePhoto"
+          >
+            <UIcon name="i-lucide-x" class="size-3.5" />
+          </button>
         </div>
-        <div class="flex-1">
-          <p class="font-semibold text-gray-950 dark:text-white">{{ form.fullName || 'Your Name' }}</p>
-          <div class="mt-2 flex items-center gap-3">
-            <div class="h-2 flex-1 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+
+        <!-- Name & Completion Meter -->
+        <div class="flex-1 text-center sm:text-left">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p class="text-lg font-bold text-gray-950 dark:text-white">{{ form.fullName || currentUser?.name || 'Candidate' }}</p>
+              <p class="text-xs text-gray-500">{{ form.email || currentUser?.email }}</p>
+            </div>
+            <div class="mt-2 sm:mt-0">
+              <UButton
+                size="xs"
+                variant="soft"
+                color="primary"
+                icon="i-lucide-upload"
+                label="Upload Photo"
+                :loading="uploadingPhoto"
+                @click="triggerFileInput"
+              />
+            </div>
+          </div>
+
+          <p v-if="photoError" class="mt-2 text-xs text-red-500">{{ photoError }}</p>
+
+          <div class="mt-4">
+            <div class="flex items-center justify-between text-xs font-medium text-gray-600 dark:text-gray-400">
+              <span>Profile Completion</span>
+              <span :class="profileCompletion === 100 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-primary font-bold'">
+                {{ profileCompletion }}%
+              </span>
+            </div>
+            <div class="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
               <div
-                class="h-full rounded-full transition-all"
+                class="h-full rounded-full transition-all duration-500"
                 :class="profileCompletion === 100 ? 'bg-emerald-500' : 'bg-primary'"
                 :style="{ width: profileCompletion + '%' }"
               />
             </div>
-            <span class="text-sm font-medium" :class="profileCompletion === 100 ? 'text-emerald-600' : 'text-gray-500'">{{ profileCompletion }}%</span>
           </div>
         </div>
       </div>
     </UCard>
 
-    <!-- Profile form -->
+    <!-- Profile Form -->
     <UCard>
       <form class="space-y-5" @submit.prevent="saveProfile">
         <div class="grid gap-5 sm:grid-cols-2">
@@ -116,15 +272,15 @@ function handleResumeDemo() {
         </div>
 
         <UFormField label="Skills" hint="Comma-separated">
-          <UInput v-model="form.skills" class="w-full" placeholder="JavaScript, Vue.js, TypeScript" icon="i-lucide-sparkles" />
+          <UInput v-model="form.skills" class="w-full" placeholder="JavaScript, Vue.js, TypeScript, Node.js" icon="i-lucide-sparkles" />
         </UFormField>
 
         <UFormField label="Education">
-          <UTextarea v-model="form.education" class="w-full" placeholder="B.Tech in Computer Science — VIT, 2024" :rows="2" />
+          <UTextarea v-model="form.education" class="w-full" placeholder="B.Tech in Computer Science — 2024" :rows="2" />
         </UFormField>
 
         <UFormField label="Experience">
-          <UTextarea v-model="form.experience" class="w-full" placeholder="1.5 years as Frontend Intern at TechCorp" :rows="2" />
+          <UTextarea v-model="form.experience" class="w-full" placeholder="1.5 years as Frontend Developer at TechCorp" :rows="2" />
         </UFormField>
 
         <UFormField label="Résumé">
@@ -132,13 +288,13 @@ function handleResumeDemo() {
             <UInput v-model="form.resumeFilename" class="flex-1" placeholder="No file uploaded" icon="i-lucide-file-text" readonly />
             <UButton type="button" variant="soft" label="Demo upload" icon="i-lucide-upload" @click="handleResumeDemo" />
           </div>
-          <p class="mt-1 text-xs text-gray-400">Demo mode: clicking "Demo upload" generates a placeholder filename.</p>
+          <p class="mt-1 text-xs text-gray-400">Demo mode: clicking "Demo upload" sets your resume file name.</p>
         </UFormField>
 
-        <UAlert v-if="saved" color="success" variant="soft" title="Profile saved!" description="Your profile has been updated." icon="i-lucide-check-circle" />
+        <UAlert v-if="saved" color="success" variant="soft" title="Profile saved!" description="Your profile and photo have been updated and synced to the database." icon="i-lucide-check-circle" />
 
-        <div class="flex justify-end">
-          <UButton type="submit" size="lg" label="Save profile" icon="i-lucide-save" :loading="saving" />
+        <div class="flex justify-end gap-3 pt-2">
+          <UButton type="submit" size="lg" label="Save Profile" icon="i-lucide-save" :loading="saving" />
         </div>
       </form>
     </UCard>

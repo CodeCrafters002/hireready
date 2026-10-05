@@ -42,8 +42,19 @@ const statusLabel: Record<string, string> = {
           @click="selectedCandidate = c.user.id"
         >
           <div class="flex items-center gap-3">
-            <div class="grid size-10 shrink-0 place-items-center rounded-full bg-primary-100 text-sm font-bold text-primary dark:bg-primary-900">
-              {{ c.user.name.charAt(0) }}
+            <div class="relative size-10 shrink-0 overflow-hidden rounded-full border border-gray-200 dark:border-gray-700">
+              <img
+                v-if="c.profile?.profilePhotoUrl"
+                :src="c.profile.profilePhotoUrl"
+                class="size-full object-cover"
+                alt="Candidate photo"
+              >
+              <div
+                v-else
+                class="grid size-full place-items-center bg-primary-100 text-sm font-bold text-primary dark:bg-primary-900"
+              >
+                {{ c.user.name.charAt(0) }}
+              </div>
             </div>
             <div class="min-w-0 flex-1">
               <p class="font-semibold text-gray-950 dark:text-white">{{ c.user.name }}</p>
@@ -57,7 +68,26 @@ const statusLabel: Record<string, string> = {
       <div>
         <UCard v-if="detail">
           <template #header>
-            <h3 class="text-lg font-semibold text-gray-950 dark:text-white">{{ detail.user.name }}</h3>
+            <div class="flex items-center gap-3">
+              <div class="relative size-12 shrink-0 overflow-hidden rounded-full border border-gray-200 dark:border-gray-700">
+                <img
+                  v-if="detail.profile?.profilePhotoUrl"
+                  :src="detail.profile.profilePhotoUrl"
+                  class="size-full object-cover"
+                  alt="Candidate photo"
+                >
+                <div
+                  v-else
+                  class="grid size-full place-items-center bg-primary-100 text-base font-bold text-primary dark:bg-primary-900"
+                >
+                  {{ detail.user.name.charAt(0) }}
+                </div>
+              </div>
+              <div>
+                <h3 class="text-lg font-semibold text-gray-950 dark:text-white">{{ detail.user.name }}</h3>
+                <p class="text-xs text-gray-500">{{ detail.user.email }}</p>
+              </div>
+            </div>
           </template>
 
           <div class="space-y-4">
