@@ -24,6 +24,10 @@ export function useAuth() {
     // Demo mode — accept any password
     currentUser.value = user
     if (!import.meta.server) localStorage.setItem(AUTH_KEY, JSON.stringify(user))
+
+    // Optional background check with backend
+    $fetch('/api/auth/login', { method: 'POST', body: { email, password: _password } }).catch(() => null)
+
     return { success: true }
   }
 
@@ -49,6 +53,15 @@ export function useAuth() {
     }
     currentUser.value = user
     if (!import.meta.server) localStorage.setItem(AUTH_KEY, JSON.stringify(user))
+
+    // Persist registration to MongoDB Atlas
+    $fetch('/api/auth/register', {
+      method: 'POST',
+      body: { name, email, role }
+    }).catch(err => {
+      console.warn('[Auth] MongoDB user register sync:', err)
+    })
+
     return { success: true, user }
   }
 

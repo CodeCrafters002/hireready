@@ -39,7 +39,11 @@ function read<T>(key: string): T[] {
 
 function write<T>(key: string, data: T[]): void {
   if (import.meta.server) return
-  localStorage.setItem(key, JSON.stringify(data))
+  try {
+    localStorage.setItem(key, JSON.stringify(data))
+  } catch (err) {
+    console.error(`[DataStore] Failed writing to ${key}:`, err)
+  }
 }
 
 function uid(prefix = 'id'): string {
@@ -48,6 +52,34 @@ function uid(prefix = 'id'): string {
 
 // ─── Composable ───────────────────────────────────────────────────────────────
 export function useDataStore() {
+  // ── Database Sync ────────────────────────────────────────────────────────
+  async function syncWithDatabase(): Promise<void> {
+    if (import.meta.server) return
+    try {
+      // 1. First trigger server seed if needed
+      await $fetch('/api/seed', { method: 'POST', body: { force: false } }).catch(() => null)
+
+      // 2. Fetch latest data in parallel from MongoDB
+      const [jobsData, appsData, questionsData] = await Promise.all([
+        $fetch<Job[]>('/api/jobs').catch(() => null),
+        $fetch<Application[]>('/api/applications').catch(() => null),
+        $fetch<AssessmentQuestion[]>('/api/questions?all=true').catch(() => null)
+      ])
+
+      if (jobsData && jobsData.length > 0) {
+        saveJobs(jobsData)
+      }
+      if (appsData && appsData.length > 0) {
+        saveApplications(appsData)
+      }
+      if (questionsData && questionsData.length > 0) {
+        saveQuestions(questionsData)
+      }
+    } catch (err) {
+      console.warn('[DataStore] Database sync non-fatal error:', err)
+    }
+  }
+
   // ── Users ───────────────────────────────────────────────────────────────
   function getUsers(): User[] { return read<User>(KEYS.users) }
   function saveUsers(users: User[]): void { write(KEYS.users, users) }
@@ -72,6 +104,12 @@ export function useDataStore() {
     if (index >= 0) profiles[index] = updated
     else profiles.push(updated)
     saveProfiles(profiles)
+
+    // Sync to MongoDB
+    $fetch(`/api/profile/${data.userId}`, { method: 'PUT', body: updated }).catch(err => {
+      console.warn('[DataStore] MongoDB upsertProfile error:', err)
+    })
+
     return updated
   }
 
@@ -85,6 +123,12 @@ export function useDataStore() {
     const job: Job = { ...data, id: uid('job'), createdAt: new Date().toISOString() }
     jobs.push(job)
     saveJobs(jobs)
+
+    // Sync to MongoDB
+    $fetch('/api/jobs', { method: 'POST', body: job }).catch(err => {
+      console.warn('[DataStore] MongoDB createJob error:', err)
+    })
+
     return job
   }
   function updateJob(id: string, updates: Partial<Job>): Job | undefined {
@@ -96,6 +140,12 @@ export function useDataStore() {
     const updated: Job = { ...current, ...updates, id: current.id }
     jobs[index] = updated
     saveJobs(jobs)
+
+    // Sync to MongoDB
+    $fetch(`/api/jobs/${id}`, { method: 'PUT', body: updates }).catch(err => {
+      console.warn('[DataStore] MongoDB updateJob error:', err)
+    })
+
     return updated
   }
   function deleteJob(id: string): boolean {
@@ -118,6 +168,12 @@ export function useDataStore() {
     const app: Application = { ...data, id: uid('app'), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
     apps.push(app)
     saveApplications(apps)
+
+    // Sync to MongoDB
+    $fetch('/api/applications', { method: 'POST', body: app }).catch(err => {
+      console.warn('[DataStore] MongoDB createApplication error:', err)
+    })
+
     return app
   }
   function updateApplication(id: string, updates: Partial<Application>): Application | undefined {
@@ -129,6 +185,12 @@ export function useDataStore() {
     const updated: Application = { ...current, ...updates, id: current.id, updatedAt: new Date().toISOString() }
     apps[index] = updated
     saveApplications(apps)
+
+    // Sync to MongoDB
+    $fetch(`/api/applications/${id}`, { method: 'PUT', body: updates }).catch(err => {
+      console.warn('[DataStore] MongoDB updateApplication error:', err)
+    })
+
     return updated
   }
 
@@ -159,14 +221,17 @@ export function useDataStore() {
   function getQuestions(): AssessmentQuestion[] { return read<AssessmentQuestion>(KEYS.questions) }
   function saveQuestions(questions: AssessmentQuestion[]): void { write(KEYS.questions, questions) }
   function getEnabledQuestions(): AssessmentQuestion[] { return getQuestions().filter(q => q.enabled) }
+  
   /** Returns all enabled questions for a specific job (jobId match) */
   function getQuestionsByJob(jobId: string): AssessmentQuestion[] {
     return getQuestions().filter(q => q.enabled && q.jobId === jobId)
   }
+  
   /** Returns enabled questions NOT tied to any specific job (global fallback pool) */
   function getGlobalQuestions(): AssessmentQuestion[] {
     return getQuestions().filter(q => q.enabled && !q.jobId)
   }
+  
   /**
    * Returns the question set a candidate should answer for a given job.
    * Priority: job-specific questions first, then padded with global questions
@@ -175,20 +240,29 @@ export function useDataStore() {
   function getQuestionsForAssessment(jobId: string, count = 5): AssessmentQuestion[] {
     const jobQ = getQuestionsByJob(jobId)
     if (jobQ.length >= count) {
-      // Enough job-specific questions — pick a random subset
       return [...jobQ].sort(() => Math.random() - 0.5).slice(0, count)
     }
-    // Pad with global questions
     const globalQ = getGlobalQuestions()
     const combined = [...jobQ, ...globalQ]
-    return [...combined].sort(() => Math.random() - 0.5).slice(0, count)
+    if (combined.length === 0) {
+      return getEnabledQuestions().slice(0, count)
+    }
+    const pool = combined.length >= count ? combined : getEnabledQuestions()
+    return [...pool].sort(() => Math.random() - 0.5).slice(0, count)
   }
+
   function createQuestion(data: Omit<AssessmentQuestion, 'id' | 'createdAt'>): AssessmentQuestion {
     const questions = getQuestions()
-    const q: AssessmentQuestion = { ...data, id: uid('q'), createdAt: new Date().toISOString() }
-    questions.push(q)
+    const question: AssessmentQuestion = { ...data, id: uid('q'), createdAt: new Date().toISOString() }
+    questions.push(question)
     saveQuestions(questions)
-    return q
+
+    // Sync to MongoDB
+    $fetch('/api/questions', { method: 'POST', body: question }).catch(err => {
+      console.warn('[DataStore] MongoDB createQuestion error:', err)
+    })
+
+    return question
   }
   function updateQuestion(id: string, updates: Partial<AssessmentQuestion>): AssessmentQuestion | undefined {
     const questions = getQuestions()
@@ -206,6 +280,12 @@ export function useDataStore() {
     const filtered = questions.filter(q => q.id !== id)
     if (filtered.length === questions.length) return false
     saveQuestions(filtered)
+
+    // Sync to MongoDB
+    $fetch(`/api/questions/${id}`, { method: 'DELETE' }).catch(err => {
+      console.warn('[DataStore] MongoDB deleteQuestion error:', err)
+    })
+
     return true
   }
 
@@ -287,6 +367,7 @@ export function useDataStore() {
   }
 
   return {
+    syncWithDatabase,
     // Users
     getUsers, saveUsers, getUserById, getUserByEmail, createUser,
     // Profiles
