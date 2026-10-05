@@ -25,13 +25,18 @@ export default defineEventHandler(async (event) => {
   const id = 'user-' + Date.now().toString(36)
   // Security: Public registration can NEVER grant admin or officer privileges
   const safeRole = role === 'employer' ? 'employer' : 'candidate'
+  const displayName = safeRole === 'employer' ? (body.company || name) : name
 
   const newUser = await UserModel.create({
     id,
     email: email.toLowerCase().trim(),
-    name,
+    name: displayName,
     role: safeRole,
     passwordHash: password,
+    company: body.company || (safeRole === 'employer' ? name : ''),
+    orgType: body.orgType || '',
+    contactPerson: body.contactPerson || '',
+    city: city || body.city || '',
     createdAt: new Date().toISOString()
   })
 
@@ -53,6 +58,8 @@ export default defineEventHandler(async (event) => {
     email: newUser.email,
     name: newUser.name,
     role: newUser.role,
+    company: newUser.company,
+    orgType: newUser.orgType,
     createdAt: newUser.createdAt
   }
 })

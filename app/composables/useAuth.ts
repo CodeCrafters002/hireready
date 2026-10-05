@@ -55,11 +55,23 @@ export function useAuth() {
     }
   }
 
-  async function signUp(name: string, email: string, password: string, role: UserRole = 'candidate'): Promise<{ success: boolean; error?: string; user?: User }> {
+  async function signUp(
+    name: string,
+    email: string,
+    password: string,
+    role: UserRole = 'candidate',
+    metadata: { company?: string; orgType?: string; contactPerson?: string; city?: string } = {}
+  ): Promise<{ success: boolean; error?: string; user?: User }> {
     const cleanEmail = email.toLowerCase().trim()
     const store = useDataStore()
     if (store.getUserByEmail(cleanEmail)) return { success: false, error: 'An account with this email already exists.' }
-    const user = await store.createUser({ name, email: cleanEmail, role, passwordHash: password })
+    const user = await store.createUser({
+      name,
+      email: cleanEmail,
+      role,
+      passwordHash: password,
+      ...metadata
+    })
     // Auto-create blank profile for candidates
     if (role === 'candidate') {
       store.upsertProfile({
@@ -67,7 +79,7 @@ export function useAuth() {
         fullName: name,
         email: cleanEmail,
         mobile: '',
-        city: '',
+        city: metadata.city || '',
         skills: [],
         education: '',
         experience: '',
@@ -83,7 +95,7 @@ export function useAuth() {
     try {
       await $fetch('/api/auth/register', {
         method: 'POST',
-        body: { name, email: cleanEmail, password, role }
+        body: { name, email: cleanEmail, password, role, ...metadata }
       })
     } catch (err: any) {
       console.warn('[Auth] MongoDB user register sync:', err)

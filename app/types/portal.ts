@@ -8,6 +8,10 @@ export interface User {
   role: UserRole
   /** Demo-only hashed placeholder — never store real passwords client-side */
   passwordHash: string
+  company?: string
+  orgType?: string
+  contactPerson?: string
+  city?: string
   createdAt: string
 }
 

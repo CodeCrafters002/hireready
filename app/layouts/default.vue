@@ -76,6 +76,15 @@ function isActive(path: string) {
             />
           </template>
           <template v-else>
+            <UButton
+              to="/auth/sign-up?type=employer"
+              size="sm"
+              color="neutral"
+              variant="outline"
+              label="For Employers"
+              icon="i-lucide-building-2"
+              class="hidden sm:inline-flex"
+            />
             <UButton to="/auth/sign-in" size="sm" color="neutral" variant="ghost" label="Sign in" icon="i-lucide-log-in" />
             <UButton
               to="/auth/sign-up"
