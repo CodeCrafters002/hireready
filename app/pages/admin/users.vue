@@ -238,94 +238,108 @@ function roleLabel(role: UserRole) {
     </div>
 
     <!-- Users Table -->
-    <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-      <div class="overflow-x-auto">
-        <table class="w-full text-left text-sm">
-          <thead class="border-b border-gray-200 bg-gray-50/75 text-xs uppercase text-gray-500 dark:border-gray-800 dark:bg-gray-800/50 dark:text-gray-400">
-            <tr>
-              <th class="px-5 py-3">User</th>
-              <th class="px-5 py-3">Current Role</th>
-              <th class="px-5 py-3">Change Role</th>
-              <th class="px-5 py-3">Created</th>
-              <th class="px-5 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-200 dark:divide-gray-800">
-            <tr
-              v-for="user in filteredUsers"
-              :key="user.id"
-              class="hover:bg-gray-50/50 dark:hover:bg-gray-800/50"
-            >
-              <td class="px-5 py-4">
-                <div class="flex items-center gap-3">
-                  <div
-                    class="grid size-10 place-items-center rounded-full text-sm font-bold text-white shadow-sm"
-                    :class="{
-                      'bg-red-600': user.role === 'admin',
-                      'bg-purple-600': user.role === 'officer',
-                      'bg-blue-600': user.role === 'candidate',
-                      'bg-emerald-600': user.role === 'employer'
-                    }"
-                  >
-                    {{ user.name.charAt(0).toUpperCase() }}
+    <ClientOnly>
+      <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[780px] table-fixed text-left text-sm">
+            <colgroup>
+              <col class="w-[34%]">
+              <col class="w-[18%]">
+              <col class="w-[24%]">
+              <col class="w-[14%]">
+              <col class="w-[10%]">
+            </colgroup>
+            <thead class="border-b border-gray-200 bg-gray-50/75 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:border-gray-800 dark:bg-gray-800/50 dark:text-gray-400">
+              <tr>
+                <th class="px-5 py-3.5">User</th>
+                <th class="px-5 py-3.5">Current Role</th>
+                <th class="px-5 py-3.5">Change Role</th>
+                <th class="px-5 py-3.5">Created</th>
+                <th class="px-5 py-3.5 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-800">
+              <tr
+                v-for="user in filteredUsers"
+                :key="user.id"
+                class="transition-colors hover:bg-gray-50/50 dark:hover:bg-gray-800/50"
+              >
+                <td class="px-5 py-4">
+                  <div class="flex items-center gap-3">
+                    <div
+                      class="grid size-10 shrink-0 place-items-center rounded-full text-sm font-bold text-white shadow-sm"
+                      :class="{
+                        'bg-red-600': user.role === 'admin',
+                        'bg-purple-600': user.role === 'officer',
+                        'bg-blue-600': user.role === 'candidate',
+                        'bg-emerald-600': user.role === 'employer'
+                      }"
+                    >
+                      {{ user.name.charAt(0).toUpperCase() }}
+                    </div>
+                    <div class="min-w-0 flex-1 truncate">
+                      <p class="truncate font-semibold text-gray-950 dark:text-white">{{ user.name }}</p>
+                      <p class="truncate text-xs text-gray-500">{{ user.email }}</p>
+                    </div>
                   </div>
-                  <div class="min-w-0">
-                    <p class="font-semibold text-gray-950 dark:text-white">{{ user.name }}</p>
-                    <p class="truncate text-xs text-gray-500">{{ user.email }}</p>
-                  </div>
-                </div>
-              </td>
-              <td class="px-5 py-4">
-                <UBadge
-                  :color="roleBadgeColor(user.role)"
-                  variant="subtle"
-                  :label="roleLabel(user.role)"
-                  size="sm"
-                />
-              </td>
-              <td class="px-5 py-4">
-                <select
-                  :value="user.role"
-                  class="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-800 focus:border-primary focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
-                  @change="changeRole(user.id, ($event.target as HTMLSelectElement).value as UserRole)"
-                >
-                  <option value="admin">Admin</option>
-                  <option value="officer">Placement Officer</option>
-                  <option value="candidate">Candidate (Student)</option>
-                  <option value="employer">Employer / Client</option>
-                </select>
-              </td>
-              <td class="px-5 py-4 text-xs text-gray-500">
-                {{ user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '—' }}
-              </td>
-              <td class="px-5 py-4 text-right">
-                <div v-if="confirmDeleteId === user.id" class="flex items-center justify-end gap-2">
-                  <span class="text-xs text-red-500">Confirm?</span>
-                  <UButton size="xs" color="error" label="Yes, delete" @click="handleDeleteUser(user.id)" />
-                  <UButton size="xs" color="neutral" variant="ghost" label="Cancel" @click="confirmDeleteId = null" />
-                </div>
-                <div v-else>
-                  <UButton
-                    size="xs"
-                    color="neutral"
-                    variant="ghost"
-                    icon="i-lucide-trash-2"
-                    title="Delete user"
-                    @click="confirmDeleteId = user.id"
+                </td>
+                <td class="px-5 py-4 whitespace-nowrap">
+                  <UBadge
+                    :color="roleBadgeColor(user.role)"
+                    variant="subtle"
+                    :label="roleLabel(user.role)"
+                    size="sm"
                   />
-                </div>
-              </td>
-            </tr>
+                </td>
+                <td class="px-5 py-4 whitespace-nowrap">
+                  <select
+                    :value="user.role"
+                    class="w-full max-w-[180px] rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-800 shadow-xs transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                    @change="changeRole(user.id, ($event.target as HTMLSelectElement).value as UserRole)"
+                  >
+                    <option value="admin">Admin</option>
+                    <option value="officer">Placement Officer</option>
+                    <option value="candidate">Candidate (Student)</option>
+                    <option value="employer">Employer / Client</option>
+                  </select>
+                </td>
+                <td class="px-5 py-4 whitespace-nowrap text-xs text-gray-500">
+                  {{ user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '—' }}
+                </td>
+                <td class="px-5 py-4 whitespace-nowrap text-right">
+                  <div v-if="confirmDeleteId === user.id" class="flex items-center justify-end gap-1.5">
+                    <UButton size="xs" color="error" label="Delete" @click="handleDeleteUser(user.id)" />
+                    <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-x" @click="confirmDeleteId = null" />
+                  </div>
+                  <div v-else class="flex justify-end">
+                    <UButton
+                      size="xs"
+                      color="neutral"
+                      variant="ghost"
+                      icon="i-lucide-trash-2"
+                      title="Delete user"
+                      @click="confirmDeleteId = user.id"
+                    />
+                  </div>
+                </td>
+              </tr>
 
-            <tr v-if="filteredUsers.length === 0">
-              <td colspan="5" class="py-12 text-center text-sm text-gray-500">
-                No users found matching your filters.
-              </td>
-            </tr>
-          </tbody>
-        </table>
+              <tr v-if="filteredUsers.length === 0">
+                <td colspan="5" class="py-12 text-center text-sm text-gray-500">
+                  No users found matching your filters.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
+      <template #fallback>
+        <div class="flex items-center justify-center rounded-xl border border-gray-200 bg-white py-16 text-sm text-gray-400 dark:border-gray-800 dark:bg-gray-900">
+          <UIcon name="i-lucide-loader-2" class="mr-2 size-5 animate-spin text-primary" />
+          Loading users directory...
+        </div>
+      </template>
+    </ClientOnly>
 
     <!-- Create User Modal -->
     <div

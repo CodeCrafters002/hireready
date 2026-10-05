@@ -142,16 +142,40 @@ Global middleware (`app/middleware/auth.global.ts`) enforces:
 
 ---
 
+## Environment Variables
+
+Configure these variables in `.env` (locally) and in your **Vercel Project Settings → Environment Variables**:
+
+| Variable | Description | Example |
+| :--- | :--- | :--- |
+| `MONGODB_URI` | MongoDB Atlas Connection String | `mongodb+srv://user:pass@cluster.mongodb.net/hireready?...` |
+| `ADMIN_RECOVERY_KEY` | Break-Glass Super Admin Recovery Key | `HireReady-Admin-Recovery-2026!` |
+| `GMAIL_USER` | Your Gmail address used to dispatch reset emails | `yourname@gmail.com` |
+| `GMAIL_APP_PASSWORD` | 16-character Google App Password (not normal login password) | `abcd efgh ijkl mnop` |
+
+### Setting Up Gmail Password Reset Emails:
+1. Go to your Google Account: [myaccount.google.com/security](https://myaccount.google.com/security)
+2. Ensure **2-Step Verification** is turned ON.
+3. Search for **App passwords** (or go to `Security` → `2-Step Verification` → `App passwords`).
+4. Enter an App Name (e.g., `HireReady Portal`) and click **Create**.
+5. Copy the generated **16-character password** (e.g., `xxxx xxxx xxxx xxxx`).
+6. Add `GMAIL_USER=yourname@gmail.com` and `GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx` to your `.env` file and to Vercel Environment Variables.
+7. Any user or admin requesting password reset will now receive real emails in their Gmail inbox with the 6-digit OTP verification code!
+
+---
+
 ## Tech Stack
 
 - **Nuxt 4** (Vue 3, Nitro, Vite)
 - **Nuxt UI 4** (component library)
 - **Tailwind CSS 4**
+- **MongoDB Atlas & Mongoose** (cloud database persistence)
+- **Nodemailer** (branded transactional email delivery via Gmail)
 - **TypeScript**
-- **localStorage** (demo data persistence)
 
 ---
 
 ## License
 
 MIT
+

@@ -19,12 +19,14 @@ const loading = ref(false)
 const error = ref('')
 const successMessage = ref('')
 const previewOtp = ref<string | null>(null)
+const emailSentReal = ref(false)
 
 // Step 1: Request 6-digit recovery code
 async function handleRequestOtp() {
   error.value = ''
   successMessage.value = ''
   previewOtp.value = null
+  emailSentReal.value = false
 
   if (!form.email.trim()) {
     error.value = 'Please enter your registered email address.'
@@ -33,14 +35,17 @@ async function handleRequestOtp() {
 
   loading.value = true
   try {
-    const res = await $fetch<{ success: boolean; message: string; previewOtp?: string }>('/api/auth/forgot-password', {
+    const res = await $fetch<{ success: boolean; message: string; previewOtp?: string; emailSent?: boolean }>('/api/auth/forgot-password', {
       method: 'POST',
       body: { email: form.email.trim() }
     })
 
-    if (res.previewOtp) {
+    if (res.emailSent) {
+      emailSentReal.value = true
+      form.otp = '' // Force user to retrieve code from real email
+    } else if (res.previewOtp) {
       previewOtp.value = res.previewOtp
-      form.otp = res.previewOtp // Auto-fill for convenience
+      form.otp = res.previewOtp // Auto-fill preview for quick local testing
     }
 
     successMessage.value = res.message || 'Recovery code generated!'
@@ -228,8 +233,31 @@ async function handleBreakGlassRecovery() {
 
           <!-- Step 2: Enter Code & New Password -->
           <form v-else class="space-y-4" @submit.prevent="handleResetWithOtp">
-            <div v-if="previewOtp" class="rounded-xl border border-amber-200 bg-amber-50 p-2.5 text-center text-xs text-amber-800 dark:border-amber-800/50 dark:bg-amber-950/40 dark:text-amber-300">
-              Demo Code: <span class="font-mono font-bold tracking-widest text-amber-900 dark:text-amber-100">{{ previewOtp }}</span>
+            <div v-if="emailSentReal" class="rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-xs text-indigo-900 dark:border-indigo-800/50 dark:bg-indigo-950/40 dark:text-indigo-200">
+              <div class="flex items-start gap-2">
+                <UIcon name="i-lucide-mail-check" class="mt-0.5 size-4 shrink-0 text-indigo-600 dark:text-indigo-400" />
+                <div>
+                  <p class="font-semibold">Check your Gmail inbox</p>
+                  <p class="text-[11px] text-indigo-700 dark:text-indigo-300">We dispatched a 6-digit verification code to <strong>{{ form.email }}</strong>. Please check your Inbox and Spam/Junk folder.</p>
+                </div>
+              </div>
+            </div>
+
+            <div v-else-if="previewOtp" class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-800/50 dark:bg-amber-950/40 dark:text-amber-300">
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="font-semibold">Dev/Demo Mode Code:</span>
+                  <span class="ml-2 font-mono font-bold tracking-widest text-amber-900 dark:text-amber-100">{{ previewOtp }}</span>
+                </div>
+                <button
+                  type="button"
+                  class="rounded bg-amber-200/60 px-2 py-0.5 text-[10px] font-semibold text-amber-900 hover:bg-amber-200 dark:bg-amber-900 dark:text-amber-100"
+                  @click="form.otp = previewOtp"
+                >
+                  Auto-fill
+                </button>
+              </div>
+              <p class="mt-1 text-[10px] text-amber-700 dark:text-amber-400">Configure GMAIL_USER and GMAIL_APP_PASSWORD in .env / Vercel to receive emails directly in Gmail.</p>
             </div>
 
             <div>
