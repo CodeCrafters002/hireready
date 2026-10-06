@@ -27,7 +27,7 @@ onMounted(() => {
   }
 })
 
-function continueToPayment() {
+function submitApplication() {
   errorMessage.value = ''
   if (!form.candidateName || !form.email || !form.phone) { errorMessage.value = 'Please complete your name, email, and phone number.'; return }
   if (!job) return
@@ -43,13 +43,13 @@ function continueToPayment() {
       <h1 class="mt-5 text-3xl font-bold tracking-tight text-gray-950 dark:text-white">Start your application</h1>
       <p class="mt-2 text-gray-600 dark:text-gray-300">You are applying for <strong>{{ job.title }}</strong> at {{ job.company }}.</p>
       <UCard class="mt-8">
-        <form class="space-y-5" @submit.prevent="continueToPayment">
+        <form class="space-y-5" @submit.prevent="submitApplication">
           <UFormField label="Full name" required><UInput v-model="form.candidateName" class="w-full" placeholder="Your full name" /></UFormField>
           <UFormField label="Email" required><UInput v-model="form.email" class="w-full" type="email" placeholder="you@example.com" /></UFormField>
           <UFormField label="Phone number" required><UInput v-model="form.phone" class="w-full" type="tel" placeholder="10-digit mobile number" /></UFormField>
           <UAlert v-if="errorMessage" color="error" variant="soft" :description="errorMessage" icon="i-lucide-circle-alert" />
-          <UAlert color="warning" variant="soft" title="Payment comes next" description="After saving your details, you will see the ₹1,000 application and assessment payment screen." icon="i-lucide-indian-rupee" />
-          <UButton type="submit" block size="lg" label="Continue to payment" trailing-icon="i-lucide-arrow-right" />
+          <UAlert color="success" variant="soft" title="Direct Submission to Hiring Partner" description="Your application and profile will be delivered directly to the employer for review. No upfront payment required." icon="i-lucide-shield-check" />
+          <UButton type="submit" block size="lg" label="Submit Application to Hiring Partner" color="primary" trailing-icon="i-lucide-send" />
         </form>
       </UCard>
     </template>

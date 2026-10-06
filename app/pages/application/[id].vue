@@ -67,15 +67,21 @@ const interviewSlots = computed(() => {
       </div>
 
       <UCard v-if="application.status === 'payment_pending'" class="mt-8">
-        <template #header><h2 class="font-semibold text-gray-950 dark:text-white">Complete payment</h2></template>
-        <p class="text-gray-600 dark:text-gray-300">Your application will be unlocked after the ₹{{ application.paymentAmount.toLocaleString('en-IN') }} fee is confirmed.</p>
-        <UButton class="mt-5" size="lg" label="Proceed to Pay ₹1,000" icon="i-lucide-credit-card" @click="completeDemoPayment" />
+        <template #header><h2 class="font-semibold text-gray-950 dark:text-white">Application Status</h2></template>
+        <p class="text-gray-600 dark:text-gray-300">Submit your application directly to the hiring partner, or continue with demo payment.</p>
+        <div class="mt-5 flex flex-wrap items-center gap-3">
+          <UButton size="lg" label="Submit Directly to Employer (Skip Payment)" color="primary" icon="i-lucide-send" @click="updateStatus(application.id, 'submitted_to_client')" />
+          <UButton size="lg" variant="outline" color="neutral" label="Proceed to Pay ₹1,000 (Optional)" icon="i-lucide-credit-card" @click="completeDemoPayment" />
+        </div>
       </UCard>
 
       <UCard v-else-if="application.status === 'mcq_pending'" class="mt-8">
         <template #header><h2 class="font-semibold text-gray-950 dark:text-white">Payment confirmed</h2></template>
         <p class="text-gray-600 dark:text-gray-300">Your MCQ assessment is ready. It has 5 questions and requires a 60% score to proceed.</p>
-        <UButton :to="`/assessments/${application.id}`" class="mt-5" label="Start MCQ assessment" trailing-icon="i-lucide-arrow-right" />
+        <div class="mt-5 flex flex-wrap gap-3">
+          <UButton :to="`/assessments/${application.id}`" label="Start MCQ assessment" trailing-icon="i-lucide-arrow-right" />
+          <UButton variant="ghost" color="neutral" label="Submit Directly to Employer" @click="updateStatus(application.id, 'submitted_to_client')" />
+        </div>
       </UCard>
 
       <UCard v-else-if="application.status === 'assessment_failed'" class="mt-8">
@@ -106,9 +112,20 @@ const interviewSlots = computed(() => {
         <p class="text-gray-600 dark:text-gray-300">Unfortunately, you did not pass the mock interview. {{ application.interviewFeedback }}</p>
       </UCard>
 
-      <UCard v-else-if="application.status === 'submitted_to_client'" class="mt-8">
-        <template #header><h2 class="font-semibold text-gray-950 dark:text-white">Profile submitted to client</h2></template>
-        <p class="text-gray-600 dark:text-gray-300">Your verified profile has been sent to the hiring company. You'll be notified about the decision.</p>
+      <UCard v-else-if="application.status === 'submitted_to_client'" class="mt-8 border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/20">
+        <template #header>
+          <div class="flex items-center gap-2">
+            <UIcon name="i-lucide-check-circle" class="size-6 text-emerald-600 dark:text-emerald-400" />
+            <h2 class="font-bold text-lg text-gray-950 dark:text-white">Profile Delivered to Hiring Partner!</h2>
+          </div>
+        </template>
+        <p class="text-gray-600 dark:text-gray-300">
+          Your profile and application have been delivered directly to the hiring team at <strong>{{ job?.company }}</strong>. The employer can now review your resume and contact you directly.
+        </p>
+        <div class="mt-4 flex flex-wrap gap-2">
+          <UButton to="/jobs" label="Browse More Jobs" variant="outline" color="neutral" />
+          <UButton :to="`/assessments/${application.id}`" label="Take Optional Skills Test" variant="soft" color="primary" icon="i-lucide-award" />
+        </div>
       </UCard>
 
       <UCard v-else-if="application.status === 'selected'" class="mt-8">
