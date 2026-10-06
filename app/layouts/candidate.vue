@@ -36,6 +36,7 @@ const navItems = [
   { label: 'Interviews', icon: 'i-lucide-video', to: '/candidate/interviews' },
   { label: 'Notifications', icon: 'i-lucide-bell', to: '/candidate/notifications' },
   { label: '1-Day Gigs', icon: 'i-lucide-calendar-clock', to: '/gigs' },
+  { label: 'My Gig Applications', icon: 'i-lucide-id-card', to: '/candidate/my-gigs' },
   { label: 'Browse Jobs', icon: 'i-lucide-search', to: '/jobs' }
 ]
 

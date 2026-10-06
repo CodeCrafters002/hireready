@@ -198,6 +198,37 @@ export function useDataStore() {
 
     return updated
   }
+
+  function updateUser(id: string, updates: Partial<User> & { newPassword?: string }): User | undefined {
+    const users = getUsers()
+    const index = users.findIndex(u => u.id === id)
+    if (index < 0) return undefined
+    const current = users[index]
+    if (!current) return undefined
+
+    const { newPassword, ...safeUpdates } = updates
+    const updated: User = { ...current, ...safeUpdates }
+
+    // If a new password is being set, update the passwordHash
+    if (newPassword && newPassword.trim()) {
+      updated.passwordHash = newPassword.trim()
+    }
+
+    users[index] = updated
+    saveUsers(users)
+
+    // Sync to MongoDB — include passwordHash if resetting
+    const serverPayload: any = { ...safeUpdates }
+    if (newPassword && newPassword.trim()) {
+      serverPayload.passwordHash = newPassword.trim()
+    }
+    $fetch(`/api/users/${id}`, { method: 'PUT', body: serverPayload }).catch(err => {
+      console.warn('[DataStore] MongoDB updateUser error:', err)
+    })
+
+    return updated
+  }
+
   function deleteUser(id: string): boolean {
     const users = getUsers()
     const filtered = users.filter(u => u.id !== id)
@@ -627,13 +658,49 @@ export function useDataStore() {
       console.warn('[DataStore] MongoDB updateGigApplicationStatus error:', err)
     }
 
+    // ── Auto-fire notification to candidate ───────────────────────────────────
+    const gig = getGigById(updated.gigId)
+    if (updates.status === 'accepted') {
+      addNotification({
+        userId: updated.candidateId,
+        type: 'selection',
+        title: '🎉 Shift Accepted — Download Your Admit Card',
+        message: `You have been selected for "${gig?.title || 'a 1-day shift'}" on ${gig?.date || ''}. Go to My Gig Applications to download your Admit Card.`,
+        read: false
+      })
+    } else if (updates.status === 'checked_in') {
+      addNotification({
+        userId: updated.candidateId,
+        type: 'general',
+        title: '✅ Checked In — You are On Duty',
+        message: `Your attendance for "${gig?.title || 'the shift'}" has been marked. Complete the shift to receive your payout of ₹${updated.payoutAmount}.`,
+        read: false
+      })
+    } else if (updates.status === 'completed' || updates.status === 'paid') {
+      addNotification({
+        userId: updated.candidateId,
+        type: 'payment',
+        title: '💰 Shift Complete — Payout Approved',
+        message: `Shift sign-off confirmed for "${gig?.title || 'your shift'}". ₹${updated.payoutAmount} will be transferred to your UPI ID (${updated.upiId}) shortly.`,
+        read: false
+      })
+    } else if (updates.status === 'rejected') {
+      addNotification({
+        userId: updated.candidateId,
+        type: 'general',
+        title: 'Application Update',
+        message: `Unfortunately, you were not selected for "${gig?.title || 'this shift'}". Keep applying — more shifts are posted regularly!`,
+        read: false
+      })
+    }
+
     return updated
   }
 
   return {
     syncWithDatabase,
     // Users
-    getUsers, saveUsers, getUserById, getUserByEmail, createUser, updateUserRole, deleteUser,
+    getUsers, saveUsers, getUserById, getUserByEmail, createUser, updateUserRole, updateUser, deleteUser,
     // Profiles
     getProfiles, getProfileByUserId, upsertProfile,
     // Jobs

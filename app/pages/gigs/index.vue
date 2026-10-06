@@ -57,6 +57,10 @@ function hasApplied(gigId: string) {
   return myApplications.value.some(a => a.gigId === gigId)
 }
 
+function myApplicationForGig(gigId: string) {
+  return myApplications.value.find(a => a.gigId === gigId)
+}
+
 // ── Apply Modal State ──────────────────────────────────────────────────────────
 const isModalOpen = ref(false)
 const selectedGig = ref<Gig | null>(null)
@@ -353,15 +357,26 @@ function getCategoryBadge(cat: GigCategory) {
               </p>
             </div>
 
-            <div>
+            <div class="flex flex-col items-end gap-1.5">
+              <!-- Accepted: show admit card button -->
+              <NuxtLink
+                v-if="['accepted','checked_in'].includes(myApplicationForGig(gig.id)?.status || '')"
+                to="/candidate/my-gigs"
+                class="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 transition-all"
+              >
+                <UIcon name="i-lucide-id-card" class="size-4" />
+                Admit Card
+              </NuxtLink>
+              <!-- Applied but not yet accepted -->
               <button
-                v-if="hasApplied(gig.id)"
+                v-else-if="hasApplied(gig.id)"
                 disabled
                 class="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400"
               >
                 <UIcon name="i-lucide-check-circle" class="size-4" />
                 Applied
               </button>
+              <!-- Not applied -->
               <button
                 v-else
                 class="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 active:scale-95 transition-all"
@@ -425,7 +440,7 @@ function getCategoryBadge(cat: GigCategory) {
 
             <div class="mt-6 flex justify-center gap-3">
               <UButton label="Close" color="neutral" variant="outline" @click="isModalOpen = false" />
-              <UButton to="/application" label="View All My Shifts" color="primary" />
+              <UButton to="/candidate/my-gigs" label="Track My Applications" icon="i-lucide-id-card" color="primary" />
             </div>
           </div>
 
