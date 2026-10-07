@@ -11,12 +11,16 @@ const UserSchema = new Schema({
   orgType: { type: String, default: '' },
   contactPerson: { type: String, default: '' },
   city: { type: String, default: '' },
+  phone: { type: String, default: '' },
+  designation: { type: String, default: '' },
+  profilePhotoUrl: { type: String, default: '' },
+  bio: { type: String, default: '' },
   passwordResetToken: { type: String, default: null },
   passwordResetOtp: { type: String, default: null },
   passwordResetExpires: { type: Date, default: null },
   recoveryKeyUsedAt: { type: String, default: null },
   createdAt: { type: String, default: () => new Date().toISOString() }
-})
+}, { strict: false })
 
 // ─── 2. Candidate Profile Schema ────────────────────────────────────────────
 const CandidateProfileSchema = new Schema({

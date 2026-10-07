@@ -5,6 +5,7 @@ const sidebarOpen = ref(false)
 
 const navItems = [
   { label: 'Dashboard', icon: 'i-lucide-layout-dashboard', to: '/admin' },
+  { label: 'My Admin Profile', icon: 'i-lucide-user-cog', to: '/admin/profile' },
   { label: 'Users & Roles', icon: 'i-lucide-shield-check', to: '/admin/users' },
   { label: 'Manage Jobs', icon: 'i-lucide-briefcase', to: '/admin/jobs' },
   { label: 'Manage Candidates', icon: 'i-lucide-users', to: '/admin/candidates' },
@@ -39,15 +40,33 @@ function isActiveRoute(path: string) {
         </div>
 
         <div class="border-b border-gray-200 p-4 dark:border-gray-800">
-          <div class="flex items-center gap-3">
-            <div class="grid size-10 place-items-center rounded-full bg-red-100 text-sm font-bold text-red-600 dark:bg-red-900 dark:text-red-300">
+          <NuxtLink
+            to="/admin/profile"
+            class="flex items-center gap-3 rounded-xl p-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800/60"
+            title="Edit Admin Profile"
+          >
+            <div
+              v-if="(currentUser as any)?.profilePhotoUrl"
+              class="relative size-10 shrink-0 overflow-hidden rounded-full border border-red-500/30"
+            >
+              <img :src="(currentUser as any)?.profilePhotoUrl" alt="Avatar" class="size-full object-cover" />
+            </div>
+            <div
+              v-else
+              class="grid size-10 place-items-center rounded-full bg-red-100 text-sm font-bold text-red-600 dark:bg-red-900 dark:text-red-300 shrink-0"
+            >
               {{ currentUser?.name?.charAt(0) || 'A' }}
             </div>
-            <div class="min-w-0">
-              <p class="truncate text-sm font-semibold text-gray-950 dark:text-white">{{ currentUser?.name }}</p>
-              <UBadge color="error" variant="subtle" label="Admin" size="xs" />
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm font-semibold text-gray-950 dark:text-white hover:text-red-600 dark:hover:text-red-400">
+                {{ currentUser?.name }}
+              </p>
+              <div class="flex items-center gap-1.5">
+                <UBadge color="error" variant="subtle" label="Admin" size="xs" />
+                <span class="text-[10px] text-gray-400 hover:underline">Edit &rarr;</span>
+              </div>
             </div>
-          </div>
+          </NuxtLink>
         </div>
 
         <nav class="flex-1 space-y-1 overflow-y-auto p-3">
@@ -75,9 +94,28 @@ function isActiveRoute(path: string) {
 
       <!-- Main content -->
       <div class="flex flex-1 flex-col lg:pl-64">
-        <header class="sticky top-0 z-20 flex h-16 items-center gap-4 border-b border-gray-200 bg-white/90 px-4 backdrop-blur dark:border-gray-800 dark:bg-gray-950/90 sm:px-6">
-          <UButton class="lg:hidden" icon="i-lucide-menu" variant="ghost" color="neutral" @click="sidebarOpen = true" />
-          <h1 class="text-lg font-semibold text-gray-950 dark:text-white">Admin Panel</h1>
+        <header class="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-gray-200 bg-white/90 px-4 backdrop-blur dark:border-gray-800 dark:bg-gray-950/90 sm:px-6">
+          <div class="flex items-center gap-3">
+            <UButton class="lg:hidden" icon="i-lucide-menu" variant="ghost" color="neutral" @click="sidebarOpen = true" />
+            <h1 class="text-lg font-semibold text-gray-950 dark:text-white">Admin Panel</h1>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <NuxtLink
+              to="/admin/profile"
+              class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+            >
+              <div
+                v-if="(currentUser as any)?.profilePhotoUrl"
+                class="size-6 overflow-hidden rounded-full border border-red-400"
+              >
+                <img :src="(currentUser as any)?.profilePhotoUrl" alt="Avatar" class="size-full object-cover" />
+              </div>
+              <UIcon v-else name="i-lucide-user" class="size-4 text-red-500" />
+              <span>{{ currentUser?.name }}</span>
+            </NuxtLink>
+            <UButton to="/admin/profile" size="xs" variant="outline" color="neutral" icon="i-lucide-settings" label="Profile" />
+          </div>
         </header>
 
         <main class="flex-1 p-4 sm:p-6">

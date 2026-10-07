@@ -6,6 +6,7 @@ const sidebarOpen = ref(false)
 const navItems = [
   { label: 'Client Dashboard', icon: 'i-lucide-layout-dashboard', to: '/employer' },
   { label: '1-Day Gigs & Shifts', icon: 'i-lucide-calendar-clock', to: '/employer/gigs' },
+  { label: 'Company Profile & Settings', icon: 'i-lucide-building-2', to: '/employer/profile' },
   { label: 'Browse Portal Jobs', icon: 'i-lucide-briefcase', to: '/jobs' }
 ]
 
@@ -32,15 +33,31 @@ function isActiveRoute(path: string) {
         </div>
 
         <div class="border-b border-gray-200 p-4 dark:border-gray-800">
-          <div class="flex items-center gap-3">
-            <div class="grid size-10 place-items-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">
+          <NuxtLink
+            to="/employer/profile"
+            class="flex items-center gap-3 rounded-xl p-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800/60"
+            title="Edit Organization Profile"
+          >
+            <div
+              v-if="(currentUser as any)?.profilePhotoUrl"
+              class="relative size-10 shrink-0 overflow-hidden rounded-full border border-emerald-500/30"
+            >
+              <img :src="(currentUser as any)?.profilePhotoUrl" alt="Avatar" class="size-full object-cover" />
+            </div>
+            <div
+              v-else
+              class="grid size-10 place-items-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 shrink-0"
+            >
               {{ currentUser?.name?.charAt(0) || 'E' }}
             </div>
-            <div class="min-w-0">
-              <p class="truncate text-sm font-semibold text-gray-950 dark:text-white">{{ currentUser?.name }}</p>
-              <UBadge color="success" variant="subtle" label="Hiring Partner" size="xs" />
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm font-semibold text-gray-950 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400">{{ currentUser?.name }}</p>
+              <div class="flex items-center gap-1.5">
+                <UBadge color="success" variant="subtle" label="Hiring Partner" size="xs" />
+                <span class="text-[10px] text-gray-400 hover:underline">Edit &rarr;</span>
+              </div>
             </div>
-          </div>
+          </NuxtLink>
         </div>
 
         <nav class="flex-1 space-y-1 overflow-y-auto p-3">
@@ -86,6 +103,19 @@ function isActiveRoute(path: string) {
             <h1 class="text-lg font-semibold text-gray-950 dark:text-white">Employer / Client Workspace</h1>
           </div>
           <div class="flex items-center gap-3">
+            <NuxtLink
+              to="/employer/profile"
+              class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+            >
+              <div
+                v-if="(currentUser as any)?.profilePhotoUrl"
+                class="size-6 overflow-hidden rounded-full border border-emerald-400"
+              >
+                <img :src="(currentUser as any)?.profilePhotoUrl" alt="Avatar" class="size-full object-cover" />
+              </div>
+              <UIcon v-else name="i-lucide-building" class="size-4 text-emerald-500" />
+              <span>{{ (currentUser as any)?.company || currentUser?.name }}</span>
+            </NuxtLink>
             <UButton to="/jobs" size="sm" variant="outline" color="neutral" icon="i-lucide-external-link" label="View Public Jobs" />
           </div>
         </header>

@@ -217,6 +217,14 @@ export function useDataStore() {
     users[index] = updated
     saveUsers(users)
 
+    // If the updated user is currently logged in, sync currentUser
+    try {
+      const auth = useAuth()
+      if (auth.currentUser.value?.id === id) {
+        auth.updateCurrentUser(updated)
+      }
+    } catch {}
+
     // Sync to MongoDB — include passwordHash if resetting
     const serverPayload: any = { ...safeUpdates }
     if (newPassword && newPassword.trim()) {

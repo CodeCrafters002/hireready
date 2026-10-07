@@ -124,7 +124,7 @@ const editingUser = ref<User | null>(null)
 const editLoading = ref(false)
 const editError = ref('')
 const editForm = reactive({
-  name: '', email: '', company: '', orgType: '', city: '', role: 'candidate' as UserRole,
+  name: '', email: '', company: '', orgType: '', city: '', phone: '', designation: '', bio: '', role: 'candidate' as UserRole,
   profilePhotoUrl: ''
 })
 const photoPreview = ref('')
@@ -138,6 +138,9 @@ function openEditModal(user: User) {
     company: (user as any).company || '',
     orgType: (user as any).orgType || '',
     city: (user as any).city || '',
+    phone: (user as any).phone || '',
+    designation: (user as any).designation || '',
+    bio: (user as any).bio || '',
     role: user.role,
     profilePhotoUrl: (user as any).profilePhotoUrl || ''
   })
@@ -187,6 +190,9 @@ async function handleEditUser() {
       company: editForm.company,
       orgType: editForm.orgType,
       city: editForm.city,
+      phone: editForm.phone,
+      designation: editForm.designation,
+      bio: editForm.bio,
       profilePhotoUrl: editForm.profilePhotoUrl
     } as any)
 
@@ -686,6 +692,12 @@ function avatarColor(role: UserRole) {
               <UFormField label="City">
                 <UInput v-model="editForm.city" placeholder="e.g. Mumbai" class="w-full" />
               </UFormField>
+              <UFormField label="Phone / Mobile Number">
+                <UInput v-model="editForm.phone" placeholder="+91 98765 43210" class="w-full" />
+              </UFormField>
+              <UFormField label="Designation / Title">
+                <UInput v-model="editForm.designation" placeholder="e.g. Lead Officer / Recruiter" class="w-full" />
+              </UFormField>
               <UFormField label="Role">
                 <select
                   v-model="editForm.role"
@@ -698,6 +710,9 @@ function avatarColor(role: UserRole) {
                 </select>
               </UFormField>
             </div>
+            <UFormField label="Bio / Notes" class="mt-4">
+              <UTextarea v-model="editForm.bio" placeholder="Notes or background on this user account..." :rows="2" class="w-full" />
+            </UFormField>
           </div>
 
           <!-- Organization Info (shown for employer/admin) -->

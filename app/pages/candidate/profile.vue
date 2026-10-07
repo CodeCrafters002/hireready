@@ -221,6 +221,40 @@ function removeResume() {
   form.resumeFileSize = ''
   if (resumeFileInput.value) resumeFileInput.value.value = ''
 }
+
+// Password change
+const passwordForm = reactive({ newPassword: '', confirmPassword: '', showPw: false })
+const pwSaving = ref(false)
+const pwSuccess = ref('')
+const pwError = ref('')
+
+async function updatePassword() {
+  pwError.value = ''
+  pwSuccess.value = ''
+
+  if (!passwordForm.newPassword || passwordForm.newPassword.length < 6) {
+    pwError.value = 'Password must be at least 6 characters.'
+    return
+  }
+  if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+    pwError.value = 'Passwords do not match.'
+    return
+  }
+  if (!currentUser.value?.id) return
+
+  pwSaving.value = true
+  try {
+    store.updateUser(currentUser.value.id, { newPassword: passwordForm.newPassword.trim() })
+    pwSuccess.value = 'Password updated successfully!'
+    passwordForm.newPassword = ''
+    passwordForm.confirmPassword = ''
+    setTimeout(() => { pwSuccess.value = '' }, 4000)
+  } catch (err: any) {
+    pwError.value = err.message || 'Failed to update password.'
+  } finally {
+    pwSaving.value = false
+  }
+}
 </script>
 
 <template>
@@ -457,6 +491,41 @@ function removeResume() {
 
         <div class="flex justify-end gap-3 pt-2">
           <UButton type="submit" size="lg" label="Save Profile" icon="i-lucide-save" :loading="saving" />
+        </div>
+      </form>
+    </UCard>
+
+    <!-- Security & Password -->
+    <UCard>
+      <template #header>
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="font-bold text-base text-gray-950 dark:text-white">Security &amp; Password</h3>
+            <p class="text-xs text-gray-500">Update your account login password anytime.</p>
+          </div>
+          <UIcon name="i-lucide-lock" class="size-5 text-gray-400" />
+        </div>
+      </template>
+
+      <form class="space-y-4" @submit.prevent="updatePassword">
+        <div v-if="pwError" class="rounded-lg bg-red-50 p-3 text-xs text-red-600 dark:bg-red-950/40 dark:text-red-400">
+          {{ pwError }}
+        </div>
+        <div v-if="pwSuccess" class="rounded-lg bg-emerald-50 p-3 text-xs text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+          {{ pwSuccess }}
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2">
+          <UFormField label="New Password *" required>
+            <UInput v-model="passwordForm.newPassword" type="password" placeholder="Min. 6 characters" class="w-full" icon="i-lucide-lock" />
+          </UFormField>
+          <UFormField label="Confirm New Password *" required>
+            <UInput v-model="passwordForm.confirmPassword" type="password" placeholder="Repeat new password" class="w-full" icon="i-lucide-check-circle" />
+          </UFormField>
+        </div>
+
+        <div class="flex items-center justify-end border-t border-gray-100 pt-3 dark:border-gray-800">
+          <UButton type="submit" color="neutral" variant="outline" label="Update Password" :loading="pwSaving" />
         </div>
       </form>
     </UCard>

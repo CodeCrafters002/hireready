@@ -110,6 +110,15 @@ export function useAuth() {
     navigateTo('/')
   }
 
+  function updateCurrentUser(updates: Partial<User>) {
+    if (!currentUser.value) return
+    const updated = { ...currentUser.value, ...updates }
+    currentUser.value = updated
+    if (!import.meta.server) {
+      localStorage.setItem(AUTH_KEY, JSON.stringify(updated))
+    }
+  }
+
   function requireRole(role: UserRole): boolean {
     return currentUser.value?.role === role
   }
@@ -126,6 +135,7 @@ export function useAuth() {
     signIn,
     signUp,
     signOut,
+    updateCurrentUser,
     requireRole,
     isAuthenticated,
     isCandidate,

@@ -12,6 +12,10 @@ export interface User {
   orgType?: string
   contactPerson?: string
   city?: string
+  phone?: string
+  designation?: string
+  profilePhotoUrl?: string
+  bio?: string
   createdAt: string
 }
 
