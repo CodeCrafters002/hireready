@@ -22,7 +22,12 @@ const filteredJobs = computed(() => {
   if (selectedType.value) {
     jobs = jobs.filter(j => j.type === selectedType.value)
   }
-  return jobs
+  // Prioritize Featured Urgent jobs to top of list
+  return [...jobs].sort((a, b) => {
+    if (a.isFeatured && !b.isFeatured) return -1
+    if (!a.isFeatured && b.isFeatured) return 1
+    return 0
+  })
 })
 
 const typeColors: Record<string, string> = {
@@ -112,7 +117,8 @@ function getBgColor(type: string) {
           v-for="job in filteredJobs"
           :key="job.id"
           :to="`/jobs/${job.id}`"
-          class="job-card glass-card group flex flex-col rounded-2xl p-6 no-underline"
+          class="job-card glass-card group flex flex-col rounded-2xl p-6 no-underline transition-all"
+          :class="job.isFeatured ? 'border-2 border-amber-400 bg-amber-50/20 shadow-md ring-2 ring-amber-400/10 dark:border-amber-600/60 dark:bg-amber-950/20' : ''"
         >
           <div class="flex items-start gap-4">
             <!-- Company avatar -->
@@ -131,7 +137,16 @@ function getBgColor(type: string) {
                   </h2>
                   <p class="mt-0.5 text-sm text-gray-500">{{ job.company }}</p>
                 </div>
-                <span class="tag-pill shrink-0">{{ job.type }}</span>
+                <div class="flex items-center gap-1.5 shrink-0">
+                  <span
+                    v-if="job.isFeatured"
+                    class="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-2.5 py-0.5 text-[10px] font-bold text-white shadow-xs"
+                  >
+                    <UIcon name="i-lucide-flame" class="size-3" />
+                    {{ job.featuredBadge || 'Featured Urgent' }}
+                  </span>
+                  <span class="tag-pill shrink-0">{{ job.type }}</span>
+                </div>
               </div>
             </div>
           </div>

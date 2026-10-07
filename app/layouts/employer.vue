@@ -6,6 +6,7 @@ const sidebarOpen = ref(false)
 const navItems = [
   { label: 'Client Dashboard', icon: 'i-lucide-layout-dashboard', to: '/employer' },
   { label: '1-Day Gigs & Shifts', icon: 'i-lucide-calendar-clock', to: '/employer/gigs' },
+  { label: 'Plans & Unlock Credits', icon: 'i-lucide-sparkles', to: '/pricing?role=employer' },
   { label: 'Company Profile & Settings', icon: 'i-lucide-building-2', to: '/employer/profile' },
   { label: 'Browse Portal Jobs', icon: 'i-lucide-briefcase', to: '/jobs' }
 ]

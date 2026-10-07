@@ -16,6 +16,8 @@ export interface User {
   designation?: string
   profilePhotoUrl?: string
   bio?: string
+  creditsRemaining?: number
+  activePlan?: string
   createdAt: string
 }
 
@@ -34,6 +36,8 @@ export interface CandidateProfile {
   resumeFileSize?: string
   profilePhotoUrl: string
   upiId?: string
+  isFastTrackPro?: boolean
+  fastTrackBadge?: string
   updatedAt: string
 }
 
@@ -90,6 +94,9 @@ export interface Job {
   description: string
   requirements: string[]
   published: boolean
+  isFeatured?: boolean
+  featuredBadge?: string
+  isUrgent?: boolean
   createdAt: string
 }
 

@@ -91,6 +91,35 @@ const statusColor: Record<string, string> = {
       </template>
     </UAlert>
 
+    <!-- FastTrack Pro upgrade banner (if not upgraded) -->
+    <div
+      v-if="!profile?.isFastTrackPro"
+      class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-2xl border border-indigo-200 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-indigo-500/5 p-4 dark:border-indigo-900/60"
+    >
+      <div class="flex items-center gap-3">
+        <div class="grid size-10 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-xs shrink-0">
+          <UIcon name="i-lucide-zap" class="size-5" />
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h3 class="font-bold text-sm text-gray-950 dark:text-white">Get FastTrack Pro ⚡</h3>
+            <span class="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300">₹399 Lifetime</span>
+          </div>
+          <p class="text-xs text-gray-500">
+            Get top #1 ranking on recruiter dashboards, a Verified Talent badge, and 2-hour early duty shift access.
+          </p>
+        </div>
+      </div>
+      <UButton
+        to="/pricing?role=candidate"
+        size="xs"
+        color="primary"
+        label="Upgrade Now"
+        icon="i-lucide-arrow-right"
+        class="shrink-0"
+      />
+    </div>
+
     <!-- Stats grid -->
     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <UCard v-for="card in cards" :key="card.label">

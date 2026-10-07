@@ -38,7 +38,7 @@ const CandidateProfileSchema = new Schema({
   profilePhotoUrl: { type: String, default: '' },
   upiId: { type: String, default: '' },
   updatedAt: { type: String, default: () => new Date().toISOString() }
-})
+}, { strict: false })
 
 // ─── 3. Job Schema ──────────────────────────────────────────────────────────
 const JobSchema = new Schema({
@@ -52,8 +52,11 @@ const JobSchema = new Schema({
   description: { type: String, default: '' },
   requirements: { type: [String], default: [] },
   published: { type: Boolean, default: true },
+  isFeatured: { type: Boolean, default: false },
+  featuredBadge: { type: String, default: '' },
+  isUrgent: { type: Boolean, default: false },
   createdAt: { type: String, default: () => new Date().toISOString() }
-})
+}, { strict: false })
 
 // ─── 4. Application Schema ──────────────────────────────────────────────────
 const ApplicationSchema = new Schema({

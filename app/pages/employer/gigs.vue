@@ -533,17 +533,33 @@ function statusColor(gig: Gig): string {
                 <!-- Escrow Summary (create mode only) -->
                 <div
                   v-if="!isEditMode"
-                  class="mt-3 rounded-xl border border-indigo-200 bg-indigo-50/70 p-3 dark:border-indigo-900/60 dark:bg-indigo-950/30"
+                  class="mt-3 rounded-xl border border-indigo-200 bg-indigo-50/70 p-3.5 dark:border-indigo-900/60 dark:bg-indigo-950/30 space-y-2"
                 >
                   <div class="flex items-center justify-between text-xs text-indigo-900 dark:text-indigo-200">
-                    <span class="flex items-center gap-1.5">
-                      <UIcon name="i-lucide-shield-check" class="size-3.5" />
-                      Total Escrow Commitment
+                    <span class="flex items-center gap-1.5 font-bold">
+                      <UIcon name="i-lucide-shield-check" class="size-4 text-emerald-600" />
+                      Total Escrow Commitment ({{ gigForm.openings || 0 }} Openings)
                     </span>
-                    <span class="font-bold text-sm">₹{{ totalEscrowRequired.toLocaleString('en-IN') }}</span>
+                    <span class="font-black text-base text-gray-950 dark:text-white">₹{{ totalEscrowRequired.toLocaleString('en-IN') }}</span>
                   </div>
-                  <p class="mt-1 text-[11px] text-indigo-700 dark:text-indigo-300">
-                    {{ gigForm.openings }} candidate(s) × ₹{{ Number(gigForm.dailyPay).toLocaleString('en-IN') }} — 100% refunded for unfilled positions. Released to candidate UPI upon sign-off.
+
+                  <div class="grid grid-cols-3 gap-2 border-t border-indigo-200/60 pt-2 text-[11px] text-gray-600 dark:border-indigo-800/60 dark:text-gray-300">
+                    <div>
+                      <span class="text-gray-400 text-[10px]">Candidate UPI Payout (80%):</span>
+                      <p class="font-bold text-gray-900 dark:text-white">₹{{ Math.round(totalEscrowRequired * 0.8).toLocaleString('en-IN') }}</p>
+                    </div>
+                    <div>
+                      <span class="text-gray-400 text-[10px]">Escrow &amp; QR Verify (15%):</span>
+                      <p class="font-bold text-gray-900 dark:text-white">₹{{ Math.round(totalEscrowRequired * 0.15).toLocaleString('en-IN') }}</p>
+                    </div>
+                    <div>
+                      <span class="text-gray-400 text-[10px]">CSR Student Fund (5%):</span>
+                      <p class="font-bold text-emerald-600 dark:text-emerald-400">₹{{ Math.round(totalEscrowRequired * 0.05).toLocaleString('en-IN') }}</p>
+                    </div>
+                  </div>
+
+                  <p class="text-[10px] text-gray-500 dark:text-gray-400">
+                    100% refunded for unfilled openings. Released instantly to candidate UPI upon attendance verification.
                   </p>
                 </div>
               </div>

@@ -5,6 +5,7 @@ const route = useRoute()
 const navLinks = computed(() => [
   { to: '/jobs', label: 'Find Jobs', icon: 'i-lucide-briefcase' },
   { to: '/gigs', label: '1-Day Gigs', icon: 'i-lucide-calendar-clock' },
+  { to: '/pricing', label: 'Pricing & Plans', icon: 'i-lucide-sparkles' },
   { to: '/application', label: 'Applications', icon: 'i-lucide-file-text', auth: true },
   ...(isCandidate.value ? [{ to: '/candidate', label: 'Dashboard', icon: 'i-lucide-layout-dashboard' }] : []),
   ...(isAdmin.value ? [{ to: '/admin', label: 'Admin', icon: 'i-lucide-shield-check' }] : []),

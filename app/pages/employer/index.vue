@@ -178,13 +178,15 @@ const jobForm = reactive({
   salary: '₹6–10 LPA',
   summary: '',
   description: '',
-  requirements: ''
+  requirements: '',
+  isFeatured: false
 })
 
 function openPostJobModal() {
   postJobError.value = ''
   postJobSuccess.value = ''
   jobForm.company = (currentUser.value as any)?.company || currentUser.value?.name || ''
+  jobForm.isFeatured = false
   showPostJobModal.value = true
 }
 
@@ -208,8 +210,11 @@ async function handlePostJob() {
       summary: jobForm.summary.trim() || jobForm.description.trim().slice(0, 120),
       description: jobForm.description.trim(),
       requirements,
-      published: true
-    })
+      published: true,
+      isFeatured: jobForm.isFeatured,
+      isUrgent: jobForm.isFeatured,
+      featuredBadge: jobForm.isFeatured ? 'Featured Urgent' : ''
+    } as any)
 
     showPostJobModal.value = false
     postJobSuccess.value = `Job "${newJob.title}" has been posted successfully!`
@@ -237,6 +242,15 @@ async function handlePostJob() {
         </p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
+        <NuxtLink
+          to="/pricing?role=employer"
+          class="flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900 transition hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+          title="Buy Recruiter Resume Unlock Credits"
+        >
+          <UIcon name="i-lucide-coins" class="size-4 text-amber-600" />
+          <span>{{ (currentUser as any)?.creditsRemaining ?? 15 }} Credits</span>
+          <span class="text-[10px] text-amber-600 dark:text-amber-400 font-semibold underline ml-1">Get More &rarr;</span>
+        </NuxtLink>
         <UButton
           label="Refresh"
           icon="i-lucide-refresh-cw"
@@ -419,6 +433,13 @@ async function handlePostJob() {
                 <div class="min-w-0">
                   <div class="flex items-center gap-2">
                     <h3 class="text-base font-bold text-gray-950 dark:text-white truncate">{{ app.candidateName }}</h3>
+                    <span
+                      v-if="getCandidateProfile(app.candidateId, app.email)?.isFastTrackPro"
+                      class="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-xs shrink-0"
+                    >
+                      <UIcon name="i-lucide-zap" class="size-3" />
+                      FastTrack Pro
+                    </span>
                     <UBadge
                       :color="app.status === 'selected' ? 'success' : app.status === 'rejected' ? 'error' : 'warning'"
                       variant="subtle"
@@ -692,10 +713,41 @@ async function handlePostJob() {
             <UTextarea v-model="jobForm.requirements" placeholder="2+ years experience in Vue or React&#10;Strong communication skills&#10;Bachelor's degree in CS or equivalent" :rows="3" class="w-full" />
           </UFormField>
 
+          <!-- Featured Urgent Boost Card -->
+          <div class="rounded-2xl border border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 p-4 dark:border-amber-900/60 dark:from-amber-950/40 dark:to-orange-950/30">
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-start gap-3">
+                <div class="grid size-9 shrink-0 place-items-center rounded-xl bg-amber-500 text-white shadow-sm">
+                  <UIcon name="i-lucide-flame" class="size-5" />
+                </div>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <p class="text-xs font-bold text-gray-950 dark:text-white">Upgrade to Featured Urgent Opening</p>
+                    <span class="rounded-md bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold text-amber-900 dark:bg-amber-900 dark:text-amber-200">₹999 / Free on Pro</span>
+                  </div>
+                  <p class="mt-0.5 text-[11px] text-gray-600 dark:text-gray-400">
+                    Pins your job #1 on the board with an urgent flame badge and broadcasts to top 200 candidates.
+                  </p>
+                </div>
+              </div>
+
+              <label class="relative inline-flex cursor-pointer items-center shrink-0">
+                <input v-model="jobForm.isFeatured" type="checkbox" class="sr-only peer">
+                <div class="peer h-6 w-11 rounded-full bg-gray-300 peer-checked:bg-amber-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:bg-gray-700"></div>
+              </label>
+            </div>
+          </div>
+
           <!-- Footer -->
           <div class="flex items-center justify-end gap-2 border-t border-gray-100 pt-4 dark:border-gray-800">
             <UButton label="Cancel" color="neutral" variant="ghost" type="button" @click="showPostJobModal = false" />
-            <UButton type="submit" label="Publish Job Listing" icon="i-lucide-send" color="primary" :loading="postJobSubmitting" />
+            <UButton
+              type="submit"
+              :label="jobForm.isFeatured ? 'Publish & Boost Job (₹999)' : 'Publish Standard Job'"
+              :icon="jobForm.isFeatured ? 'i-lucide-flame' : 'i-lucide-send'"
+              :color="jobForm.isFeatured ? 'warning' : 'primary'"
+              :loading="postJobSubmitting"
+            />
           </div>
         </form>
       </div>

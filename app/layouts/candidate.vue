@@ -31,6 +31,7 @@ const sidebarOpen = ref(false)
 const navItems = [
   { label: 'Dashboard', icon: 'i-lucide-layout-dashboard', to: '/candidate' },
   { label: 'Profile', icon: 'i-lucide-user', to: '/candidate/profile' },
+  { label: 'FastTrack Pro ⚡', icon: 'i-lucide-zap', to: '/pricing?role=candidate' },
   { label: 'My Applications', icon: 'i-lucide-briefcase', to: '/candidate/applications' },
   { label: 'Assessments', icon: 'i-lucide-file-check', to: '/candidate/assessments' },
   { label: 'Interviews', icon: 'i-lucide-video', to: '/candidate/interviews' },
