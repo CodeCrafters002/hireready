@@ -5,8 +5,8 @@ const route = useRoute()
 const sidebarOpen = ref(false)
 
 const unreadMessagesCount = computed(() => {
-  if (!currentUser.value) return 0
-  return store.getUnreadMessagesCount(currentUser.value.id, 'employer')
+  const userId = currentUser.value?.id || 'emp-demo'
+  return store.getUnreadMessagesCount(userId, 'employer')
 })
 
 const navItems = [

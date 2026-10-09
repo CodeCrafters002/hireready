@@ -60,17 +60,19 @@ function getStepIndex(status: string): number {
 
 function openChatWithHiringTeam(app: any) {
   const job = store.getJobById(app.jobId)
+  const candidateId = currentUser.value?.id || app.candidateId || 'demo-candidate'
   const conv = store.getOrCreateConversation({
     jobId: app.jobId,
     jobTitle: job?.title || 'Open Position',
     companyName: job?.company || 'Hiring Team',
-    candidateId: currentUser.value?.id || app.candidateId,
+    candidateId,
     candidateName: currentUser.value?.name || app.candidateName || 'Candidate',
     candidateEmail: currentUser.value?.email || app.email,
     employerId: 'emp-hiring-lead',
     employerName: 'Talent Acquisition',
     employerCompany: job?.company || 'Hiring Team',
-    initialMessage: `Hi, I applied for the ${job?.title || 'role'} and would love to follow up on my application status.`
+    initialMessage: `Hi, I applied for the ${job?.title || 'role'} and would love to follow up on my application status.`,
+    initialSenderRole: 'candidate'
   })
 
   navigateTo(`/candidate/messages?conversationId=${conv.id}`)

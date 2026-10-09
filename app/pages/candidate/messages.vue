@@ -4,8 +4,27 @@ import type { Conversation, ChatMessage } from '~/types/portal'
 definePageMeta({ layout: 'candidate' })
 
 const store = useDataStore()
-const { currentUser } = useAuth()
+const { currentUser, hydrate } = useAuth()
 const route = useRoute()
+
+onMounted(() => {
+  hydrate()
+})
+
+// ── Active Candidate ID (Hydration-safe) ───────────────────────────────────────
+const activeCandidateId = computed(() => {
+  if (currentUser.value?.id) return currentUser.value.id
+  if (!import.meta.server) {
+    try {
+      const raw = localStorage.getItem('hr_current_user')
+      if (raw) {
+        const u = JSON.parse(raw)
+        if (u?.id) return u.id
+      }
+    } catch {}
+  }
+  return 'demo-candidate'
+})
 
 // ── Reactive Data ─────────────────────────────────────────────────────────────
 const searchQuery = ref('')
@@ -14,8 +33,7 @@ const newMessageText = ref('')
 const chatContainerRef = ref<HTMLElement | null>(null)
 
 const conversations = computed(() => {
-  if (!currentUser.value) return []
-  const all = store.getConversationsForUser(currentUser.value.id, 'candidate')
+  const all = store.getConversationsForUser(activeCandidateId.value, 'candidate')
   if (!searchQuery.value.trim()) return all
   const q = searchQuery.value.toLowerCase().trim()
   return all.filter(c =>
@@ -32,16 +50,19 @@ watch([conversations, () => route.query.conversationId], ([list, queryId]) => {
     selectedConvId.value = queryId
   } else if (!selectedConvId.value && list.length > 0) {
     selectedConvId.value = list[0]?.id || ''
+  } else if (selectedConvId.value && !list.some(c => c.id === selectedConvId.value) && list.length > 0) {
+    selectedConvId.value = list[0]?.id || ''
   }
 }, { immediate: true })
 
 const activeConversation = computed<Conversation | undefined>(() => {
-  return conversations.value.find(c => c.id === selectedConvId.value)
+  return conversations.value.find(c => c.id === selectedConvId.value) || conversations.value[0]
 })
 
 const messages = computed<ChatMessage[]>(() => {
-  if (!selectedConvId.value) return []
-  return store.getChatMessages(selectedConvId.value)
+  const targetId = selectedConvId.value || activeConversation.value?.id
+  if (!targetId) return []
+  return store.getChatMessages(targetId)
 })
 
 // Mark read when selecting conversation
@@ -62,12 +83,15 @@ function scrollToBottom() {
 
 function handleSendMessage(presetText?: string) {
   const text = presetText || newMessageText.value.trim()
-  if (!text || !activeConversation.value || !currentUser.value) return
+  if (!text || !activeConversation.value) return
+
+  const senderId = currentUser.value?.id || activeCandidateId.value || 'demo-candidate'
+  const senderName = currentUser.value?.name || 'You'
 
   store.sendMessage({
     conversationId: activeConversation.value.id,
-    senderId: currentUser.value.id,
-    senderName: currentUser.value.name || 'Candidate',
+    senderId,
+    senderName,
     senderRole: 'candidate',
     text
   })

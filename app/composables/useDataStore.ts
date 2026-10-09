@@ -720,13 +720,43 @@ export function useDataStore() {
 
   function getConversationsForUser(userId: string, role: 'candidate' | 'employer' | 'admin'): Conversation[] {
     ensureChatSeeded(userId, role)
-    const convs = getConversations()
+    let convs = getConversations()
+
     if (role === 'candidate') {
-      return convs.filter(c => c.candidateId === userId).sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime())
+      let userConvs = convs.filter(c => c.candidateId === userId)
+
+      // If user has no conversations yet, bind sample recruiter conversations to this candidate
+      if (userConvs.length === 0 && convs.length > 0) {
+        convs = convs.map(c => {
+          if (c.candidateId === 'cand-seed-1' || c.candidateId === 'demo-candidate' || !c.candidateId) {
+            return { ...c, candidateId: userId }
+          }
+          return c
+        })
+        saveConversations(convs)
+        userConvs = convs.filter(c => c.candidateId === userId)
+      }
+
+      // If still empty (e.g. initial launch or newly registered candidate), seed fresh conversations for this candidate
+      if (userConvs.length === 0) {
+        ensureChatSeeded(userId, role, true)
+        convs = getConversations()
+        userConvs = convs.filter(c => c.candidateId === userId)
+      }
+
+      // If still empty, return all conversations as fallback so candidate chat is never blank
+      if (userConvs.length === 0) {
+        userConvs = convs
+      }
+
+      return userConvs.sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime())
     }
+
     if (role === 'employer') {
-      return convs.filter(c => c.employerId === userId || !c.employerId || c.employerCompany).sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime())
+      // For employers, show all active hiring threads so recruiter can chat with all candidates
+      return convs.sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime())
     }
+
     return convs.sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime())
   }
 
@@ -745,12 +775,15 @@ export function useDataStore() {
     employerName: string
     employerCompany?: string
     initialMessage?: string
+    initialSenderRole?: 'candidate' | 'employer'
   }): Conversation {
     const convs = getConversations()
     let existing = convs.find(c =>
       c.candidateId === params.candidateId &&
       (params.jobId ? c.jobId === params.jobId : (c.employerId === params.employerId || c.employerCompany === params.employerCompany))
     )
+
+    const isCandidateSender = params.initialSenderRole === 'candidate'
 
     if (!existing) {
       const newConv: Conversation = {
@@ -766,8 +799,8 @@ export function useDataStore() {
         employerCompany: params.employerCompany || params.companyName,
         lastMessageText: params.initialMessage || 'Started conversation',
         lastMessageAt: new Date().toISOString(),
-        unreadCandidateCount: params.initialMessage ? 1 : 0,
-        unreadEmployerCount: 0,
+        unreadCandidateCount: (params.initialMessage && !isCandidateSender) ? 1 : 0,
+        unreadEmployerCount: (params.initialMessage && isCandidateSender) ? 1 : 0,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       }
@@ -778,9 +811,21 @@ export function useDataStore() {
       if (params.initialMessage) {
         sendMessage({
           conversationId: newConv.id,
-          senderId: params.employerId,
-          senderName: params.employerName,
-          senderRole: 'employer',
+          senderId: isCandidateSender ? params.candidateId : params.employerId,
+          senderName: isCandidateSender ? params.candidateName : params.employerName,
+          senderRole: isCandidateSender ? 'candidate' : 'employer',
+          text: params.initialMessage
+        })
+      }
+    } else {
+      // If conversation already existed, ensure messages are present
+      const msgs = read<ChatMessage>(KEYS.chatMessages).filter(m => m.conversationId === existing!.id)
+      if (msgs.length === 0 && params.initialMessage) {
+        sendMessage({
+          conversationId: existing.id,
+          senderId: isCandidateSender ? params.candidateId : params.employerId,
+          senderName: isCandidateSender ? params.candidateName : params.employerName,
+          senderRole: isCandidateSender ? 'candidate' : 'employer',
           text: params.initialMessage
         })
       }
@@ -790,9 +835,38 @@ export function useDataStore() {
   }
 
   function getChatMessages(conversationId?: string): ChatMessage[] {
-    const all = read<ChatMessage>(KEYS.chatMessages)
+    let all = read<ChatMessage>(KEYS.chatMessages)
     if (!conversationId) return all
-    return all.filter(m => m.conversationId === conversationId).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+
+    let filtered = all.filter(m => m.conversationId === conversationId)
+
+    // Fallback: If 0 messages found for this conversation, ensure messages are generated/seeded
+    if (filtered.length === 0) {
+      if (conversationId === 'conv-razorpay-01' || conversationId === 'conv-flipkart-02') {
+        ensureChatSeeded(undefined, undefined, true)
+        all = read<ChatMessage>(KEYS.chatMessages)
+        filtered = all.filter(m => m.conversationId === conversationId)
+      } else {
+        const conv = getConversationById(conversationId)
+        if (conv) {
+          const initMsg: ChatMessage = {
+            id: uid('msg'),
+            conversationId: conv.id,
+            senderId: conv.employerId || 'emp-lead',
+            senderName: conv.employerName || conv.companyName || 'Hiring Lead',
+            senderRole: 'employer',
+            text: conv.lastMessageText || `Hello! Thank you for your interest in ${conv.jobTitle || 'our position'}. We look forward to connecting with you.`,
+            createdAt: conv.createdAt || new Date().toISOString(),
+            read: true
+          }
+          all.push(initMsg)
+          saveChatMessages(all)
+          filtered = [initMsg]
+        }
+      }
+    }
+
+    return filtered.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
   }
 
   function saveChatMessages(messages: ChatMessage[]): void {
@@ -871,19 +945,24 @@ export function useDataStore() {
     return convs.reduce((acc, c) => acc + (role === 'candidate' ? (c.unreadCandidateCount || 0) : (c.unreadEmployerCount || 0)), 0)
   }
 
-  function ensureChatSeeded(currentUserId?: string, role?: string): void {
+  function ensureChatSeeded(currentUserId?: string, role?: string, force = false): void {
     if (import.meta.server) return
     const existing = read<Conversation>(KEYS.conversations)
-    if (existing.length === 0) {
-      const candId = currentUserId || 'cand-seed-1'
-      const conv1Id = 'conv-razorpay-01'
-      const conv2Id = 'conv-flipkart-02'
+    const existingMsgs = read<ChatMessage>(KEYS.chatMessages)
 
-      const now = new Date()
-      const t1 = new Date(now.getTime() - 2 * 3600 * 1000).toISOString()
-      const t2 = new Date(now.getTime() - 90 * 60 * 1000).toISOString()
-      const t3 = new Date(now.getTime() - 15 * 60 * 1000).toISOString()
+    const candId = (role === 'candidate' && currentUserId) ? currentUserId : (currentUserId || 'demo-candidate')
+    const conv1Id = 'conv-razorpay-01'
+    const conv2Id = 'conv-flipkart-02'
 
+    const now = new Date()
+    const t1 = new Date(now.getTime() - 2 * 3600 * 1000).toISOString()
+    const t2 = new Date(now.getTime() - 90 * 60 * 1000).toISOString()
+    const t3 = new Date(now.getTime() - 15 * 60 * 1000).toISOString()
+
+    const hasConv1 = existing.some(c => c.id === conv1Id)
+    const hasConv2 = existing.some(c => c.id === conv2Id)
+
+    if (existing.length === 0 || !hasConv1 || !hasConv2 || force) {
       const seededConvs: Conversation[] = [
         {
           id: conv1Id,
@@ -923,6 +1002,14 @@ export function useDataStore() {
         }
       ]
 
+      const mergedConvs = [...existing.filter(e => e.id !== conv1Id && e.id !== conv2Id), ...seededConvs]
+      write(KEYS.conversations, mergedConvs)
+    }
+
+    const hasConv1Msgs = existingMsgs.some(m => m.conversationId === conv1Id)
+    const hasConv2Msgs = existingMsgs.some(m => m.conversationId === conv2Id)
+
+    if (existingMsgs.length === 0 || !hasConv1Msgs || !hasConv2Msgs || force) {
       const seededMsgs: ChatMessage[] = [
         {
           id: 'msg-1',
@@ -971,8 +1058,8 @@ export function useDataStore() {
         }
       ]
 
-      write(KEYS.conversations, seededConvs)
-      write(KEYS.chatMessages, seededMsgs)
+      const mergedMsgs = [...existingMsgs.filter(m => m.conversationId !== conv1Id && m.conversationId !== conv2Id), ...seededMsgs]
+      write(KEYS.chatMessages, mergedMsgs)
     }
   }
 

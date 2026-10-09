@@ -4,8 +4,27 @@ import type { Conversation, ChatMessage } from '~/types/portal'
 definePageMeta({ layout: 'employer' })
 
 const store = useDataStore()
-const { currentUser } = useAuth()
+const { currentUser, hydrate } = useAuth()
 const route = useRoute()
+
+onMounted(() => {
+  hydrate()
+})
+
+// ── Active Employer ID (Hydration-safe) ────────────────────────────────────────
+const activeEmployerId = computed(() => {
+  if (currentUser.value?.id) return currentUser.value.id
+  if (!import.meta.server) {
+    try {
+      const raw = localStorage.getItem('hr_current_user')
+      if (raw) {
+        const u = JSON.parse(raw)
+        if (u?.id) return u.id
+      }
+    } catch {}
+  }
+  return 'emp-demo'
+})
 
 // ── Reactive Data ─────────────────────────────────────────────────────────────
 const searchQuery = ref('')
@@ -14,8 +33,7 @@ const newMessageText = ref('')
 const chatContainerRef = ref<HTMLElement | null>(null)
 
 const conversations = computed(() => {
-  if (!currentUser.value) return []
-  const all = store.getConversationsForUser(currentUser.value.id, 'employer')
+  const all = store.getConversationsForUser(activeEmployerId.value, 'employer')
   if (!searchQuery.value.trim()) return all
   const q = searchQuery.value.toLowerCase().trim()
   return all.filter(c =>
@@ -31,16 +49,19 @@ watch([conversations, () => route.query.conversationId], ([list, queryId]) => {
     selectedConvId.value = queryId
   } else if (!selectedConvId.value && list.length > 0) {
     selectedConvId.value = list[0]?.id || ''
+  } else if (selectedConvId.value && !list.some(c => c.id === selectedConvId.value) && list.length > 0) {
+    selectedConvId.value = list[0]?.id || ''
   }
 }, { immediate: true })
 
 const activeConversation = computed<Conversation | undefined>(() => {
-  return conversations.value.find(c => c.id === selectedConvId.value)
+  return conversations.value.find(c => c.id === selectedConvId.value) || conversations.value[0]
 })
 
 const messages = computed<ChatMessage[]>(() => {
-  if (!selectedConvId.value) return []
-  return store.getChatMessages(selectedConvId.value)
+  const targetId = selectedConvId.value || activeConversation.value?.id
+  if (!targetId) return []
+  return store.getChatMessages(targetId)
 })
 
 const candidateProfile = computed(() => {
@@ -65,12 +86,15 @@ function scrollToBottom() {
 
 function handleSendMessage(presetText?: string, quickAction?: ChatMessage['quickAction']) {
   const text = presetText || newMessageText.value.trim()
-  if (!text || !activeConversation.value || !currentUser.value) return
+  if (!text || !activeConversation.value) return
+
+  const senderId = currentUser.value?.id || activeEmployerId.value || 'emp-demo'
+  const senderName = (currentUser.value as any)?.company || currentUser.value?.name || activeConversation.value.employerName || 'Hiring Lead'
 
   store.sendMessage({
     conversationId: activeConversation.value.id,
-    senderId: currentUser.value.id,
-    senderName: (currentUser.value as any)?.company || currentUser.value.name || 'Recruiter',
+    senderId,
+    senderName,
     senderRole: 'employer',
     text,
     quickAction

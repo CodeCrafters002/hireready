@@ -9,8 +9,8 @@ const notifications = computed(() => {
 })
 const unreadCount = computed(() => notifications.value.filter(n => !n.read).length)
 const unreadMessagesCount = computed(() => {
-  if (!currentUser.value) return 0
-  return store.getUnreadMessagesCount(currentUser.value.id, 'candidate')
+  const userId = currentUser.value?.id || 'demo-candidate'
+  return store.getUnreadMessagesCount(userId, 'candidate')
 })
 const profile = computed(() => currentUser.value ? store.getProfileByUserId(currentUser.value.id) : null)
 
