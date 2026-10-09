@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Application, GigApplication, Job } from '~/types/portal'
+import type { Application, GigApplication, Job, InterviewDetails, InterviewPlatform } from '~/types/portal'
 
 definePageMeta({ layout: 'employer' })
 
@@ -40,6 +40,12 @@ const filteredJobApplications = computed(() => {
   // Status Filter
   if (statusFilter.value === 'pending') {
     list = list.filter(a => a.status === 'submitted_to_client' || a.status === 'payment_pending' || a.status === 'applied' || a.status === 'interview_passed')
+  } else if (statusFilter.value === 'interview') {
+    list = list.filter(a => a.status === 'interview_scheduled' || !!a.interviewDetails)
+  } else if (statusFilter.value === 'fasttrack') {
+    list = list.filter(a => !!getCandidateProfile(a.candidateId, a.email)?.isFastTrackPro)
+  } else if (statusFilter.value === 'shortlisted') {
+    list = list.filter(a => a.status === 'submitted_to_client')
   } else if (statusFilter.value === 'selected') {
     list = list.filter(a => a.status === 'selected')
   } else if (statusFilter.value === 'rejected') {
@@ -95,12 +101,16 @@ const stats = computed(() => {
   const gigApps = allGigApplications.value
 
   const pendingJob = jobApps.filter(a => ['submitted_to_client', 'payment_pending', 'applied', 'interview_passed'].includes(a.status)).length
+  const scheduledInterviews = jobApps.filter(a => a.status === 'interview_scheduled' || !!a.interviewDetails).length
   const selectedJob = jobApps.filter(a => a.status === 'selected').length
+  const fastTrackCount = jobApps.filter(a => !!getCandidateProfile(a.candidateId, a.email)?.isFastTrackPro).length
   const totalGigs = gigApps.length
 
   return {
     totalJobApps: jobApps.length,
     pendingJob,
+    scheduledInterviews,
+    fastTrackCount,
     selectedJob,
     totalGigs
   }
@@ -143,6 +153,183 @@ function handleDecision(appId: string, decision: 'selected' | 'rejected' | 'subm
 
 async function handleGigStatus(appId: string, status: any) {
   await store.updateGigApplicationStatus(appId, { status })
+}
+
+// ── Interview Scheduling State & Logic ─────────────────────────────────────────
+const isInterviewModalOpen = ref(false)
+const selectedAppForInterview = ref<Application | null>(null)
+const interviewSubmitting = ref(false)
+const interviewForm = reactive({
+  roundName: 'Technical Round 1',
+  platform: 'google_meet' as InterviewPlatform,
+  meetingLink: '',
+  interviewDate: '',
+  interviewTime: '11:00',
+  durationMinutes: 45,
+  interviewerName: '',
+  notes: ''
+})
+
+function generateGoogleMeetLink(): string {
+  const code = () => Math.random().toString(36).substring(2, 6)
+  return `https://meet.google.com/hry-${code()}-${code().slice(0, 3)}`
+}
+
+function openInterviewModal(app: Application) {
+  selectedAppForInterview.value = app
+
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const defaultDate = tomorrow.toISOString().split('T')[0]
+
+  if (app.interviewDetails) {
+    const d = app.interviewDetails
+    interviewForm.roundName = d.roundName || 'Technical Round 1'
+    interviewForm.platform = d.platform || 'google_meet'
+    interviewForm.meetingLink = d.meetingLink || ''
+    if (d.scheduledAt && d.scheduledAt.includes('T')) {
+      const parts = d.scheduledAt.split('T')
+      interviewForm.interviewDate = parts[0]
+      interviewForm.interviewTime = parts[1]?.slice(0, 5) || '11:00'
+    } else {
+      interviewForm.interviewDate = defaultDate
+      interviewForm.interviewTime = '11:00'
+    }
+    interviewForm.durationMinutes = d.durationMinutes || 45
+    interviewForm.interviewerName = d.interviewerName || currentUser.value?.name || 'Hiring Lead'
+    interviewForm.notes = d.notes || ''
+  } else {
+    interviewForm.roundName = 'Technical Round 1'
+    interviewForm.platform = 'google_meet'
+    interviewForm.meetingLink = generateGoogleMeetLink()
+    interviewForm.interviewDate = defaultDate
+    interviewForm.interviewTime = '11:00'
+    interviewForm.durationMinutes = 45
+    interviewForm.interviewerName = currentUser.value?.name || 'Hiring Lead'
+    interviewForm.notes = 'Please join with camera enabled, stable internet connection, and resume ready.'
+  }
+  isInterviewModalOpen.value = true
+}
+
+function selectPlatform(platform: InterviewPlatform) {
+  interviewForm.platform = platform
+  if (platform === 'google_meet') {
+    if (!interviewForm.meetingLink || !interviewForm.meetingLink.includes('meet.google.com')) {
+      interviewForm.meetingLink = generateGoogleMeetLink()
+    }
+  } else if (platform === 'hireready_call') {
+    const base = typeof window !== 'undefined' ? window.location.origin : 'https://hireready-drab-nine.vercel.app'
+    interviewForm.meetingLink = `${base}/meet/${selectedAppForInterview.value?.id || 'live'}`
+  } else if (platform === 'zoom') {
+    if (!interviewForm.meetingLink || !interviewForm.meetingLink.includes('zoom.us')) {
+      interviewForm.meetingLink = `https://zoom.us/j/${Math.floor(1000000000 + Math.random() * 9000000000)}?pwd=${Math.random().toString(36).slice(2, 8)}`
+    }
+  } else if (platform === 'phone') {
+    interviewForm.meetingLink = `tel:${selectedAppForInterview.value?.phone || ''}`
+  }
+}
+
+function getPlatformIcon(platform: InterviewPlatform | string): string {
+  switch (platform) {
+    case 'google_meet': return 'i-lucide-video'
+    case 'zoom': return 'i-lucide-monitor-play'
+    case 'hireready_call': return 'i-lucide-sparkles'
+    case 'phone': return 'i-lucide-phone-call'
+    default: return 'i-lucide-video'
+  }
+}
+
+function getPlatformLabel(platform: InterviewPlatform | string): string {
+  switch (platform) {
+    case 'google_meet': return 'Google Meet'
+    case 'zoom': return 'Zoom'
+    case 'hireready_call': return 'HireReady In-App Call'
+    case 'phone': return 'Direct Phone Call'
+    default: return 'Video Call'
+  }
+}
+
+function formatInterviewDateTime(isoString: string): string {
+  if (!isoString) return 'Time not specified'
+  try {
+    const d = new Date(isoString)
+    if (isNaN(d.getTime())) return isoString
+    return d.toLocaleString('en-IN', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    })
+  } catch {
+    return isoString
+  }
+}
+
+async function submitInterviewSchedule() {
+  if (!selectedAppForInterview.value) return
+  if (!interviewForm.roundName || !interviewForm.interviewDate || !interviewForm.interviewTime) {
+    alert('Please enter round name, date, and time.')
+    return
+  }
+
+  interviewSubmitting.value = true
+  try {
+    const app = selectedAppForInterview.value
+    const job = getJob(app.jobId)
+    const scheduledDateTime = `${interviewForm.interviewDate}T${interviewForm.interviewTime}`
+
+    const interviewDetails: InterviewDetails = {
+      roundName: interviewForm.roundName.trim(),
+      platform: interviewForm.platform,
+      meetingLink: interviewForm.meetingLink.trim(),
+      scheduledAt: scheduledDateTime,
+      durationMinutes: Number(interviewForm.durationMinutes) || 45,
+      interviewerName: interviewForm.interviewerName.trim() || 'Hiring Lead',
+      notes: interviewForm.notes.trim(),
+      status: 'scheduled'
+    }
+
+    const slotLabel = `${interviewDetails.roundName} · ${formatInterviewDateTime(scheduledDateTime)}`
+
+    store.updateApplication(app.id, {
+      status: 'interview_scheduled',
+      interviewDetails,
+      interviewSlot: slotLabel
+    })
+
+    // In-app Notification for Candidate
+    store.addNotification({
+      userId: app.candidateId,
+      type: 'interview',
+      title: `📅 Interview Scheduled: ${interviewDetails.roundName}`,
+      message: `${job?.company || 'Hiring Partner'} has invited you to an interview for ${getJobTitle(app.jobId)} on ${formatInterviewDateTime(scheduledDateTime)} via ${getPlatformLabel(interviewDetails.platform)}.`
+    })
+
+    isInterviewModalOpen.value = false
+  } finally {
+    interviewSubmitting.value = false
+  }
+}
+
+function cancelInterview(appId: string) {
+  if (!confirm('Are you sure you want to cancel this interview?')) return
+  const app = store.getApplicationById(appId)
+  if (!app) return
+
+  store.updateApplication(appId, {
+    status: 'submitted_to_client',
+    interviewDetails: undefined,
+    interviewSlot: undefined
+  })
+
+  store.addNotification({
+    userId: app.candidateId,
+    type: 'interview',
+    title: 'Interview Cancelled',
+    message: `Your interview for ${getJobTitle(app.jobId)} has been cancelled by the employer.`
+  })
 }
 
 // ── Resume Preview & Download ─────────────────────────────────────────────────
@@ -282,8 +469,8 @@ async function handlePostJob() {
     </div>
 
     <!-- ── Stats Overview ───────────────────────────────────────────────────── -->
-    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <UCard class="hover:shadow-md transition-shadow">
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <UCard class="hover:shadow-md transition-shadow cursor-pointer" @click="statusFilter = 'all'">
         <div class="flex items-center gap-3">
           <div class="grid size-11 place-items-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
             <UIcon name="i-lucide-users" class="size-5" />
@@ -295,7 +482,19 @@ async function handlePostJob() {
         </div>
       </UCard>
 
-      <UCard class="hover:shadow-md transition-shadow">
+      <UCard class="hover:shadow-md transition-shadow cursor-pointer" @click="statusFilter = 'interview'">
+        <div class="flex items-center gap-3">
+          <div class="grid size-11 place-items-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400">
+            <UIcon name="i-lucide-calendar-check" class="size-5" />
+          </div>
+          <div>
+            <p class="text-xs font-medium text-indigo-600 dark:text-indigo-400">Interviews</p>
+            <p class="text-2xl font-black text-indigo-600 dark:text-indigo-400">{{ stats.scheduledInterviews }}</p>
+          </div>
+        </div>
+      </UCard>
+
+      <UCard class="hover:shadow-md transition-shadow cursor-pointer" @click="statusFilter = 'pending'">
         <div class="flex items-center gap-3">
           <div class="grid size-11 place-items-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400">
             <UIcon name="i-lucide-clock" class="size-5" />
@@ -307,7 +506,7 @@ async function handlePostJob() {
         </div>
       </UCard>
 
-      <UCard class="hover:shadow-md transition-shadow">
+      <UCard class="hover:shadow-md transition-shadow cursor-pointer" @click="statusFilter = 'selected'">
         <div class="flex items-center gap-3">
           <div class="grid size-11 place-items-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
             <UIcon name="i-lucide-check-circle" class="size-5" />
@@ -319,13 +518,13 @@ async function handlePostJob() {
         </div>
       </UCard>
 
-      <UCard class="hover:shadow-md transition-shadow">
+      <UCard class="hover:shadow-md transition-shadow cursor-pointer" @click="activeTab = 'gigs'">
         <div class="flex items-center gap-3">
           <div class="grid size-11 place-items-center rounded-xl bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-400">
             <UIcon name="i-lucide-calendar" class="size-5" />
           </div>
           <div>
-            <p class="text-xs font-medium text-purple-600 dark:text-purple-400">1-Day Shift Applicants</p>
+            <p class="text-xs font-medium text-purple-600 dark:text-purple-400">1-Day Shift Gigs</p>
             <p class="text-2xl font-black text-purple-600 dark:text-purple-400">{{ stats.totalGigs }}</p>
           </div>
         </div>
@@ -367,7 +566,10 @@ async function handlePostJob() {
           <button
             v-for="s in [
               { id: 'all', label: 'All Applicants' },
+              { id: 'interview', label: '📅 Interviews' },
+              { id: 'fasttrack', label: '⚡ FastTrack Pro' },
               { id: 'pending', label: 'Awaiting Decision' },
+              { id: 'shortlisted', label: 'Shortlisted' },
               { id: 'selected', label: 'Selected / Offers' },
               { id: 'rejected', label: 'Archived / Passed' }
             ]"
@@ -441,10 +643,10 @@ async function handlePostJob() {
                       FastTrack Pro
                     </span>
                     <UBadge
-                      :color="app.status === 'selected' ? 'success' : app.status === 'rejected' ? 'error' : 'warning'"
+                      :color="app.status === 'selected' ? 'success' : app.status === 'rejected' ? 'error' : (app.status === 'interview_scheduled' || !!app.interviewDetails) ? 'primary' : 'warning'"
                       variant="subtle"
                       size="xs"
-                      :label="app.status === 'selected' ? 'Offer Extended' : app.status === 'rejected' ? 'Not Selected' : 'Ready for Review'"
+                      :label="app.status === 'selected' ? 'Offer Extended' : app.status === 'rejected' ? 'Not Selected' : (app.status === 'interview_scheduled' || !!app.interviewDetails) ? 'Interview Scheduled' : 'Ready for Review'"
                     />
                   </div>
                   <div class="flex flex-wrap items-center gap-2 text-xs text-gray-500 mt-0.5">
@@ -474,7 +676,7 @@ async function handlePostJob() {
                 </div>
 
                 <div class="rounded-lg bg-gray-50 p-2.5 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-800">
-                  <span class="text-gray-400">Mock Interview</span>
+                  <span class="text-gray-400">Interview Status</span>
                   <p class="font-semibold text-gray-900 dark:text-white truncate">
                     {{ app.interviewSlot || 'Ready for Client Scheduling' }}
                   </p>
@@ -533,6 +735,87 @@ async function handlePostJob() {
                     />
                   </div>
                 </div>
+
+                <!-- Scheduled Interview Highlight Box (if interview is set) -->
+                <div
+                  v-if="app.interviewDetails"
+                  class="mt-3 rounded-xl border border-indigo-200 bg-gradient-to-r from-indigo-50/80 via-purple-50/40 to-white p-3.5 shadow-2xs dark:border-indigo-900/60 dark:bg-gray-800/80"
+                >
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2.5">
+                      <div class="grid size-9 place-items-center rounded-xl bg-indigo-600 text-white shadow-xs shrink-0">
+                        <UIcon :name="getPlatformIcon(app.interviewDetails.platform)" class="size-4" />
+                      </div>
+                      <div>
+                        <div class="flex items-center gap-2">
+                          <span class="font-bold text-sm text-gray-900 dark:text-white">{{ app.interviewDetails.roundName }}</span>
+                          <UBadge
+                            :color="app.interviewDetails.status === 'candidate_accepted' ? 'success' : app.interviewDetails.status === 'reschedule_requested' ? 'warning' : 'primary'"
+                            variant="subtle"
+                            size="xs"
+                            :label="app.interviewDetails.status === 'candidate_accepted' ? '✓ Accepted by Candidate' : app.interviewDetails.status === 'reschedule_requested' ? '⚠ Reschedule Requested' : 'Invitation Sent'"
+                          />
+                        </div>
+                        <p class="text-[11px] text-gray-500">
+                          Interviewer: <span class="font-semibold text-gray-700 dark:text-gray-300">{{ app.interviewDetails.interviewerName }}</span> · {{ app.interviewDetails.durationMinutes }} mins
+                        </p>
+                      </div>
+                    </div>
+
+                    <!-- Meeting Actions -->
+                    <div class="flex items-center gap-1.5">
+                      <a
+                        v-if="app.interviewDetails.meetingLink"
+                        :href="app.interviewDetails.meetingLink"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-indigo-700 transition-colors"
+                      >
+                        <UIcon name="i-lucide-video" class="size-3.5" />
+                        Join Call
+                      </a>
+                      <UButton
+                        size="xs"
+                        variant="outline"
+                        color="neutral"
+                        icon="i-lucide-calendar"
+                        label="Reschedule"
+                        @click="openInterviewModal(app)"
+                      />
+                      <UButton
+                        size="xs"
+                        variant="ghost"
+                        color="error"
+                        icon="i-lucide-x"
+                        title="Cancel Interview"
+                        @click="cancelInterview(app.id)"
+                      />
+                    </div>
+                  </div>
+
+                  <!-- Candidate Reschedule Request Note -->
+                  <div
+                    v-if="app.interviewDetails.status === 'reschedule_requested' && app.interviewDetails.candidateNote"
+                    class="mt-2.5 rounded-lg bg-amber-50 p-2 text-xs text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:border-amber-900 dark:text-amber-200"
+                  >
+                    <span class="font-bold">Candidate's Reschedule Request:</span> {{ app.interviewDetails.candidateNote }}
+                  </div>
+
+                  <!-- Details Footer -->
+                  <div class="mt-2.5 flex flex-wrap items-center gap-4 text-xs text-gray-600 dark:text-gray-300 pt-2 border-t border-indigo-100 dark:border-indigo-950">
+                    <span class="flex items-center gap-1 font-semibold text-indigo-700 dark:text-indigo-400">
+                      <UIcon name="i-lucide-clock" class="size-3.5" />
+                      {{ formatInterviewDateTime(app.interviewDetails.scheduledAt) }}
+                    </span>
+                    <span class="flex items-center gap-1 text-gray-500">
+                      <UIcon name="i-lucide-laptop" class="size-3.5" />
+                      {{ getPlatformLabel(app.interviewDetails.platform) }}
+                    </span>
+                    <span v-if="app.interviewDetails.notes" class="text-gray-500 truncate max-w-sm">
+                      <strong class="text-gray-700 dark:text-gray-300">Agenda:</strong> {{ app.interviewDetails.notes }}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -547,10 +830,28 @@ async function handlePostJob() {
                 @click="handleDecision(app.id, 'selected')"
               />
               <UButton
-                v-if="app.status !== 'submitted_to_client' && app.status !== 'selected'"
+                v-if="!app.interviewDetails"
+                size="sm"
+                color="primary"
+                variant="solid"
+                icon="i-lucide-calendar-plus"
+                label="Schedule Interview"
+                @click="openInterviewModal(app)"
+              />
+              <UButton
+                v-if="app.interviewDetails"
                 size="sm"
                 color="primary"
                 variant="soft"
+                icon="i-lucide-video"
+                label="Interview Details"
+                @click="openInterviewModal(app)"
+              />
+              <UButton
+                v-if="app.status !== 'submitted_to_client' && app.status !== 'selected' && !app.interviewDetails"
+                size="sm"
+                color="primary"
+                variant="ghost"
                 icon="i-lucide-bookmark"
                 label="Shortlist Profile"
                 @click="handleDecision(app.id, 'submitted_to_client')"
@@ -786,6 +1087,199 @@ async function handlePostJob() {
             title="Candidate Resume Preview"
           />
         </div>
+      </div>
+    </div>
+
+    <!-- ── Schedule Interview Modal ─────────────────────────────────────────── -->
+    <div
+      v-if="isInterviewModalOpen && selectedAppForInterview"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+    >
+      <div class="flex max-h-[92vh] w-full max-w-xl flex-col rounded-2xl bg-white shadow-2xl dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+        <!-- Modal Header -->
+        <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-800">
+          <div class="flex items-center gap-3">
+            <div class="grid size-10 place-items-center rounded-xl bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-400">
+              <UIcon name="i-lucide-calendar-plus" class="size-5" />
+            </div>
+            <div>
+              <h3 class="font-bold text-gray-950 dark:text-white">Schedule Interview</h3>
+              <p class="text-xs text-gray-500">
+                Candidate: <span class="font-semibold text-gray-700 dark:text-gray-300">{{ selectedAppForInterview.candidateName }}</span> · {{ getJobTitle(selectedAppForInterview.jobId) }}
+              </p>
+            </div>
+          </div>
+          <button class="text-gray-400 hover:text-gray-600 dark:hover:text-white" @click="isInterviewModalOpen = false">
+            <UIcon name="i-lucide-x" class="size-5" />
+          </button>
+        </div>
+
+        <!-- Modal Body Form -->
+        <form class="flex-1 overflow-y-auto p-6 space-y-4" @submit.prevent="submitInterviewSchedule">
+          <!-- Round Name & Presets -->
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Interview Round Name *</label>
+            <div class="flex flex-wrap gap-1.5 mb-2">
+              <button
+                v-for="preset in ['Initial Screening', 'Technical Round 1', 'Coding Challenge', 'System Design', 'Culture & Founder Round', '1-Day Duty Briefing']"
+                :key="preset"
+                type="button"
+                class="rounded-lg px-2.5 py-1 text-[11px] font-medium border transition-colors"
+                :class="interviewForm.roundName === preset ? 'bg-indigo-50 border-indigo-500 text-indigo-700 dark:bg-indigo-950 dark:border-indigo-500 dark:text-indigo-300 font-bold' : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800'"
+                @click="interviewForm.roundName = preset"
+              >
+                {{ preset }}
+              </button>
+            </div>
+            <input
+              v-model="interviewForm.roundName"
+              type="text"
+              required
+              placeholder="e.g. Technical Round 1 or HR Screening"
+              class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs text-gray-900 shadow-2xs focus:border-indigo-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+            />
+          </div>
+
+          <!-- Platform Selector -->
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Meeting Platform *</label>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <button
+                type="button"
+                class="flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all"
+                :class="interviewForm.platform === 'google_meet' ? 'border-indigo-600 bg-indigo-50/70 text-indigo-700 font-bold shadow-2xs dark:border-indigo-500 dark:bg-indigo-950/40 dark:text-indigo-300' : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800'"
+                @click="selectPlatform('google_meet')"
+              >
+                <UIcon name="i-lucide-video" class="size-5 mb-1 text-emerald-600" />
+                <span class="text-xs">Google Meet</span>
+              </button>
+              <button
+                type="button"
+                class="flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all"
+                :class="interviewForm.platform === 'zoom' ? 'border-indigo-600 bg-indigo-50/70 text-indigo-700 font-bold shadow-2xs dark:border-indigo-500 dark:bg-indigo-950/40 dark:text-indigo-300' : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800'"
+                @click="selectPlatform('zoom')"
+              >
+                <UIcon name="i-lucide-monitor-play" class="size-5 mb-1 text-blue-600" />
+                <span class="text-xs">Zoom</span>
+              </button>
+              <button
+                type="button"
+                class="flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all"
+                :class="interviewForm.platform === 'hireready_call' ? 'border-indigo-600 bg-indigo-50/70 text-indigo-700 font-bold shadow-2xs dark:border-indigo-500 dark:bg-indigo-950/40 dark:text-indigo-300' : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800'"
+                @click="selectPlatform('hireready_call')"
+              >
+                <UIcon name="i-lucide-sparkles" class="size-5 mb-1 text-purple-600" />
+                <span class="text-xs">HireReady Call</span>
+              </button>
+              <button
+                type="button"
+                class="flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all"
+                :class="interviewForm.platform === 'phone' ? 'border-indigo-600 bg-indigo-50/70 text-indigo-700 font-bold shadow-2xs dark:border-indigo-500 dark:bg-indigo-950/40 dark:text-indigo-300' : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800'"
+                @click="selectPlatform('phone')"
+              >
+                <UIcon name="i-lucide-phone-call" class="size-5 mb-1 text-amber-600" />
+                <span class="text-xs">Phone Call</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Meeting Link Input -->
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300">
+                Meeting Link / URL *
+              </label>
+              <button
+                v-if="interviewForm.platform === 'google_meet'"
+                type="button"
+                class="text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 flex items-center gap-1"
+                @click="interviewForm.meetingLink = generateGoogleMeetLink()"
+              >
+                <UIcon name="i-lucide-refresh-cw" class="size-3" /> Generate New Meet Link
+              </button>
+            </div>
+            <div class="relative">
+              <input
+                v-model="interviewForm.meetingLink"
+                type="text"
+                required
+                placeholder="https://meet.google.com/..."
+                class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs text-gray-900 shadow-2xs focus:border-indigo-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              />
+            </div>
+          </div>
+
+          <!-- Date & Time Row -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Date *</label>
+              <input
+                v-model="interviewForm.interviewDate"
+                type="date"
+                required
+                class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs text-gray-900 shadow-2xs focus:border-indigo-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              />
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Time *</label>
+              <input
+                v-model="interviewForm.interviewTime"
+                type="time"
+                required
+                class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs text-gray-900 shadow-2xs focus:border-indigo-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              />
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Duration *</label>
+              <select
+                v-model="interviewForm.durationMinutes"
+                class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs text-gray-900 shadow-2xs focus:border-indigo-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              >
+                <option :value="15">15 minutes</option>
+                <option :value="30">30 minutes</option>
+                <option :value="45">45 minutes</option>
+                <option :value="60">60 minutes</option>
+                <option :value="90">90 minutes</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Interviewer Name -->
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Interviewer Name / Title</label>
+            <input
+              v-model="interviewForm.interviewerName"
+              type="text"
+              placeholder="e.g. Lead Engineer / HR Director"
+              class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs text-gray-900 shadow-2xs focus:border-indigo-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+            />
+          </div>
+
+          <!-- Agenda / Notes for Candidate -->
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Preparation Notes &amp; Agenda</label>
+            <textarea
+              v-model="interviewForm.notes"
+              rows="2"
+              placeholder="Instructions, topics to prepare, or portfolio requirements..."
+              class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs text-gray-900 shadow-2xs focus:border-indigo-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+            />
+          </div>
+
+          <!-- Footer Buttons -->
+          <div class="flex items-center justify-end gap-2 border-t border-gray-100 pt-4 dark:border-gray-800">
+            <UButton label="Cancel" color="neutral" variant="ghost" type="button" @click="isInterviewModalOpen = false" />
+            <UButton
+              type="submit"
+              label="Send Interview Invitation"
+              icon="i-lucide-calendar-check"
+              color="primary"
+              :loading="interviewSubmitting"
+            />
+          </div>
+        </form>
       </div>
     </div>
 

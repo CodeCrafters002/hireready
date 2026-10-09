@@ -137,8 +137,26 @@ function getStepIndex(status: string): number {
             <!-- Details -->
             <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500">
               <span v-if="app.assessmentScore !== undefined">MCQ Score: {{ app.assessmentScore }}%</span>
-              <span v-if="app.interviewSlot">Interview: {{ app.interviewSlot }}</span>
+              <span v-if="app.interviewSlot && !app.interviewDetails">Mock Interview: {{ app.interviewSlot }}</span>
               <span>Payment: ₹{{ app.paymentAmount.toLocaleString('en-IN') }}</span>
+            </div>
+
+            <!-- Company Scheduled Interview Chip -->
+            <div v-if="app.interviewDetails" class="mt-2.5 flex flex-wrap items-center gap-2">
+              <span class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-2.5 py-1 text-xs font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300">
+                <UIcon name="i-lucide-calendar-check" class="size-3.5" />
+                {{ app.interviewDetails.roundName }} · {{ app.interviewSlot || 'Scheduled' }}
+              </span>
+              <a
+                v-if="app.interviewDetails.meetingLink"
+                :href="app.interviewDetails.meetingLink"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-2.5 py-1 text-xs font-semibold text-white shadow-2xs hover:bg-indigo-700 transition-colors"
+              >
+                <UIcon name="i-lucide-video" class="size-3" />
+                Join Video Meeting
+              </a>
             </div>
           </div>
 

@@ -126,8 +126,26 @@ export interface Application {
   assessmentScore?: number
   interviewSlot?: string
   interviewFeedback?: string
+  interviewDetails?: InterviewDetails
   createdAt: string
   updatedAt: string
+}
+
+export type InterviewPlatform = 'google_meet' | 'zoom' | 'hireready_call' | 'phone'
+export type InterviewScheduleStatus = 'scheduled' | 'candidate_accepted' | 'reschedule_requested' | 'completed' | 'cancelled'
+
+export interface InterviewDetails {
+  roundName: string
+  platform: InterviewPlatform
+  meetingLink: string
+  scheduledAt: string
+  durationMinutes: number
+  interviewerName: string
+  notes?: string
+  status: InterviewScheduleStatus
+  candidateNote?: string
+  feedback?: string
+  rating?: number
 }
 
 // ─── Payment ──────────────────────────────────────────────────────────────────

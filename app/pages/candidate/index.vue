@@ -67,6 +67,28 @@ const statusColor: Record<string, string> = {
   selected: 'success',
   rejected: 'error'
 }
+
+const upcomingInterviewApp = computed(() => {
+  return applications.value.find(a => !!a.interviewDetails && a.interviewDetails.status !== 'cancelled')
+})
+
+function formatInterviewDateTime(isoString: string): string {
+  if (!isoString) return ''
+  try {
+    const d = new Date(isoString)
+    if (isNaN(d.getTime())) return isoString
+    return d.toLocaleString('en-IN', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    })
+  } catch {
+    return isoString
+  }
+}
 </script>
 
 <template>
@@ -74,6 +96,60 @@ const statusColor: Record<string, string> = {
     <div class="mb-6">
       <h2 class="text-2xl font-bold text-gray-950 dark:text-white">Welcome back, {{ currentUser?.name?.split(' ')[0] }} 👋</h2>
       <p class="mt-1 text-gray-500">Here's an overview of your applications and progress.</p>
+    </div>
+
+    <!-- Upcoming Interview Alert Banner -->
+    <div
+      v-if="upcomingInterviewApp"
+      class="mb-6 rounded-2xl border border-indigo-200 bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-800 p-5 text-white shadow-md"
+    >
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div class="flex items-start gap-3.5">
+          <div class="grid size-12 place-items-center rounded-xl bg-white/20 backdrop-blur-xs text-white shrink-0">
+            <UIcon name="i-lucide-calendar-check" class="size-6" />
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-bold backdrop-blur-xs">
+                Upcoming Live Interview
+              </span>
+              <span class="text-xs text-indigo-100">
+                {{ upcomingInterviewApp.interviewDetails?.durationMinutes }} mins
+              </span>
+            </div>
+            <h3 class="text-lg font-bold mt-1">
+              {{ upcomingInterviewApp.interviewDetails?.roundName }} · {{ store.getJobById(upcomingInterviewApp.jobId)?.company }}
+            </h3>
+            <p class="text-xs text-indigo-100 mt-0.5 flex items-center gap-1.5">
+              <UIcon name="i-lucide-clock" class="size-3.5" />
+              {{ formatInterviewDateTime(upcomingInterviewApp.interviewDetails?.scheduledAt || '') }}
+              <span>•</span>
+              Role: {{ store.getJobById(upcomingInterviewApp.jobId)?.title }}
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 shrink-0">
+          <a
+            v-if="upcomingInterviewApp.interviewDetails?.meetingLink"
+            :href="upcomingInterviewApp.interviewDetails?.meetingLink"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-indigo-700 shadow-sm hover:bg-indigo-50 transition-colors"
+          >
+            <UIcon name="i-lucide-video" class="size-4" />
+            Join Video Meeting
+          </a>
+          <UButton
+            to="/candidate/interviews"
+            size="sm"
+            variant="ghost"
+            class="text-white hover:bg-white/10"
+            label="Details &amp; Calendar"
+            icon="i-lucide-arrow-right"
+          />
+        </div>
+      </div>
     </div>
 
     <!-- Profile completion alert -->

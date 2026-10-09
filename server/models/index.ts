@@ -87,9 +87,10 @@ const ApplicationSchema = new Schema({
   assessmentScore: { type: Number },
   interviewSlot: { type: String },
   interviewFeedback: { type: String },
+  interviewDetails: { type: Schema.Types.Mixed },
   createdAt: { type: String, default: () => new Date().toISOString() },
   updatedAt: { type: String, default: () => new Date().toISOString() }
-})
+}, { strict: false })
 
 // ─── 5. Assessment Question Schema ──────────────────────────────────────────
 const AssessmentQuestionSchema = new Schema({
