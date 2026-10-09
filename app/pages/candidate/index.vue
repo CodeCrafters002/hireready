@@ -89,6 +89,18 @@ function formatInterviewDateTime(isoString: string): string {
     return isoString
   }
 }
+
+// ── Smart Job Match Engine ──────────────────────────────────────────────────
+const { getRecommendedJobsForCandidate } = useJobMatching()
+const allJobs = computed(() => store.getJobs())
+
+const recommendedJobs = computed(() => {
+  return getRecommendedJobsForCandidate(profile.value, allJobs.value).slice(0, 3)
+})
+
+function hasApplied(jobId: string): boolean {
+  return applications.value.some(a => a.jobId === jobId)
+}
 </script>
 
 <template>
@@ -209,6 +221,143 @@ function formatInterviewDateTime(isoString: string): string {
           </div>
         </div>
       </UCard>
+    </div>
+
+    <!-- ── Smart Matched Recommendations ─────────────────────────────────── -->
+    <div class="mt-8 space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div>
+          <div class="flex items-center gap-2">
+            <h3 class="text-lg font-bold text-gray-950 dark:text-white flex items-center gap-2">
+              <UIcon name="i-lucide-sparkles" class="size-5 text-indigo-600 dark:text-indigo-400" />
+              Top Recommended Jobs (AI Match)
+            </h3>
+            <span class="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+              Personalized
+            </span>
+          </div>
+          <p class="text-xs text-gray-500 mt-0.5">
+            Ranked by skill relevance, preferred role, and location compatibility.
+          </p>
+        </div>
+
+        <UButton
+          to="/jobs"
+          size="xs"
+          variant="ghost"
+          color="primary"
+          label="Browse All Jobs"
+          trailing-icon="i-lucide-arrow-right"
+        />
+      </div>
+
+      <div v-if="recommendedJobs.length > 0" class="grid gap-4 md:grid-cols-3">
+        <UCard
+          v-for="rec in recommendedJobs"
+          :key="rec.job.id"
+          class="relative flex flex-col justify-between border transition-all hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-700"
+          :class="rec.score >= 80 ? 'border-indigo-200 dark:border-indigo-900/60 bg-gradient-to-b from-indigo-50/20 to-transparent' : 'border-gray-200 dark:border-gray-800'"
+        >
+          <div class="space-y-3">
+            <!-- Score Badge & Tag -->
+            <div class="flex items-center justify-between gap-2">
+              <UBadge
+                :color="rec.badgeColor"
+                variant="subtle"
+                size="sm"
+                :label="rec.label"
+                class="font-bold"
+              />
+              <span v-if="rec.job.isFeatured" class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-300 flex items-center gap-1">
+                <UIcon name="i-lucide-flame" class="size-3" /> Urgent
+              </span>
+            </div>
+
+            <!-- Job Title & Company -->
+            <div>
+              <NuxtLink :to="`/jobs/${rec.job.id}`" class="font-bold text-base text-gray-950 dark:text-white hover:text-primary transition-colors line-clamp-1">
+                {{ rec.job.title }}
+              </NuxtLink>
+              <p class="text-xs text-gray-500 font-medium">{{ rec.job.company }} · {{ rec.job.location }}</p>
+            </div>
+
+            <!-- Salary & Type -->
+            <div class="flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-300">
+              <span class="text-emerald-600 dark:text-emerald-400 font-bold">{{ rec.job.salary }}</span>
+              <span>•</span>
+              <span>{{ rec.job.type }}</span>
+            </div>
+
+            <!-- Matched Skills Chips -->
+            <div class="space-y-1.5 pt-1">
+              <span class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">Skill Alignment</span>
+              <div class="flex flex-wrap gap-1">
+                <span
+                  v-for="skill in rec.matchedSkills"
+                  :key="skill"
+                  class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                >
+                  <UIcon name="i-lucide-check" class="size-3 text-emerald-600" />
+                  {{ skill }}
+                </span>
+                <span
+                  v-for="skill in rec.missingSkills.slice(0, 2)"
+                  :key="skill"
+                  class="inline-flex items-center gap-1 rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                >
+                  +{{ skill }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Career Tip / Alignment Note -->
+            <p v-if="rec.careerTip" class="text-[11px] text-gray-500 italic bg-gray-50 dark:bg-gray-800/40 p-2 rounded-lg border border-gray-100 dark:border-gray-800">
+              {{ rec.careerTip }}
+            </p>
+          </div>
+
+          <!-- Bottom Action Button -->
+          <div class="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+            <span v-if="hasApplied(rec.job.id)" class="text-xs font-bold text-emerald-600 flex items-center justify-center gap-1 py-1">
+              <UIcon name="i-lucide-check-circle" class="size-4" /> Already Applied
+            </span>
+            <UButton
+              v-else
+              :to="`/jobs/${rec.job.id}`"
+              size="xs"
+              color="primary"
+              variant="solid"
+              block
+              icon="i-lucide-send"
+              label="1-Click Apply"
+            />
+          </div>
+        </UCard>
+      </div>
+
+      <!-- Skill Upskill Hint Box -->
+      <div class="rounded-xl border border-indigo-100 bg-gradient-to-r from-indigo-50/70 via-purple-50/40 to-white p-4 dark:border-indigo-950 dark:bg-gray-900 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div class="grid size-9 place-items-center rounded-lg bg-indigo-600 text-white shadow-xs shrink-0">
+            <UIcon name="i-lucide-compass" class="size-4" />
+          </div>
+          <div>
+            <h4 class="font-bold text-xs text-gray-900 dark:text-white">Want to unlock higher matching scores?</h4>
+            <p class="text-[11px] text-gray-500">
+              Adding verified skills (like Docker, Python, or System Design) to your profile will instantly match you with senior openings.
+            </p>
+          </div>
+        </div>
+        <UButton
+          to="/candidate/profile"
+          size="xs"
+          variant="outline"
+          color="primary"
+          label="Update Profile Skills"
+          icon="i-lucide-arrow-right"
+          class="shrink-0"
+        />
+      </div>
     </div>
 
     <!-- Recent applications -->

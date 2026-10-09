@@ -28,10 +28,43 @@ const gigs = computed(() => store.getGigs())
 const profiles = computed(() => store.getProfiles())
 
 // ── Filter State ──────────────────────────────────────────────────────────────
-const activeTab = ref<'jobs' | 'gigs'>('jobs')
+const activeTab = ref<'jobs' | 'gigs' | 'matches'>('jobs')
 const statusFilter = ref<string>('all')
 const selectedJobId = ref<string>('all')
 const searchQuery = ref<string>('')
+
+// ── Smart Talent Match Engine ────────────────────────────────────────────────
+const { getMatchingCandidatesForJob, extractJobSkills } = useJobMatching()
+const matchingJobId = ref<string>('')
+
+watch(jobs, (jList) => {
+  if (!matchingJobId.value && jList && jList.length > 0) {
+    matchingJobId.value = jList[0]?.id || ''
+  }
+}, { immediate: true })
+
+const currentMatchingJob = computed(() => {
+  return jobs.value.find(j => j.id === matchingJobId.value) || jobs.value[0]
+})
+
+const matchedCandidates = computed(() => {
+  if (!currentMatchingJob.value) return []
+  return getMatchingCandidatesForJob(currentMatchingJob.value, profiles.value)
+})
+
+const invitedCandidates = ref<Record<string, boolean>>({})
+
+function inviteCandidate(candidateProfile: any) {
+  if (!currentMatchingJob.value) return
+  invitedCandidates.value[candidateProfile.userId] = true
+
+  store.addNotification({
+    userId: candidateProfile.userId,
+    type: 'interview',
+    title: `🎉 Employer Match Invitation: ${currentMatchingJob.value.title}`,
+    message: `${currentMatchingJob.value.company} reviewed your profile skills and invited you to apply & interview for the ${currentMatchingJob.value.title} opening!`
+  })
+}
 
 // Filtered Job Applications (shows ALL applications without prematurely hiding them)
 const filteredJobApplications = computed(() => {
@@ -552,6 +585,19 @@ async function handlePostJob() {
         <UIcon name="i-lucide-calendar-clock" class="size-4" />
         <span>1-Day Duty &amp; Shift Candidates ({{ allGigApplications.length }})</span>
       </button>
+
+      <button
+        type="button"
+        class="inline-flex items-center gap-2 border-b-2 px-3 py-2 text-sm font-bold transition-colors"
+        :class="activeTab === 'matches' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-900 dark:hover:text-white'"
+        @click="activeTab = 'matches'"
+      >
+        <UIcon name="i-lucide-sparkles" class="size-4 text-emerald-500" />
+        <span>AI Matched Talent Pool ({{ profiles.length }})</span>
+        <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+          Automated
+        </span>
+      </button>
     </div>
 
     <!-- ════════════════════════════════════════════════════════════════════════
@@ -943,6 +989,156 @@ async function handlePostJob() {
                 color="success"
                 label="Complete &amp; Release Pay"
                 @click="handleGigStatus(gApp.id, 'completed')"
+              />
+            </div>
+          </div>
+        </UCard>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════════════════════
+         TAB 3: AI MATCHED TALENT POOL
+         ════════════════════════════════════════════════════════════════════════ -->
+    <div v-else-if="activeTab === 'matches'" class="space-y-4">
+      <!-- Selector & Intro Banner -->
+      <div class="rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50/80 via-purple-50/40 to-white p-5 shadow-xs dark:border-indigo-950 dark:bg-gray-900">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div class="space-y-1">
+            <div class="flex items-center gap-2">
+              <div class="grid size-9 place-items-center rounded-xl bg-indigo-600 text-white shadow-xs">
+                <UIcon name="i-lucide-sparkles" class="size-5" />
+              </div>
+              <h2 class="text-lg font-bold text-gray-950 dark:text-white">Automated Candidate Recommendation Engine</h2>
+            </div>
+            <p class="text-xs text-gray-600 dark:text-gray-300 max-w-2xl">
+              Candidates who registered their profiles on HireReady are instantly matched against your job requirements based on normalized technical skills, location, and experience.
+            </p>
+          </div>
+
+          <!-- Active Job Picker -->
+          <div class="flex items-center gap-2 shrink-0 bg-white dark:bg-gray-800 p-2 rounded-xl border border-gray-200 dark:border-gray-700 shadow-2xs">
+            <span class="text-xs font-bold text-gray-700 dark:text-gray-300">Target Role:</span>
+            <select
+              v-model="matchingJobId"
+              class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-900 focus:border-indigo-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            >
+              <option v-for="j in jobs" :key="j.id" :value="j.id">
+                {{ j.title }} ({{ j.location }})
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <div v-if="currentMatchingJob" class="mt-4 pt-3 border-t border-indigo-100 dark:border-indigo-900/60 flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+          <span class="font-bold text-gray-900 dark:text-white">Active Requirement Keywords:</span>
+          <span
+            v-for="s in extractJobSkills(currentMatchingJob).slice(0, 8)"
+            :key="s"
+            class="rounded-md bg-white dark:bg-gray-800 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800"
+          >
+            {{ s }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Empty state -->
+      <div v-if="matchedCandidates.length === 0" class="rounded-2xl border border-dashed border-gray-300 p-12 text-center dark:border-gray-800">
+        <UIcon name="i-lucide-users" class="mx-auto size-12 text-gray-400" />
+        <h3 class="mt-3 text-base font-bold text-gray-950 dark:text-white">No candidate profiles registered yet</h3>
+        <p class="mt-1 text-xs text-gray-500 max-w-sm mx-auto">
+          As soon as candidates submit their details, they will be scored against {{ currentMatchingJob?.title || 'your jobs' }} in real time.
+        </p>
+      </div>
+
+      <!-- Matched Candidates Grid -->
+      <div v-else class="grid gap-4 md:grid-cols-2">
+        <UCard
+          v-for="mc in matchedCandidates"
+          :key="mc.profile.userId"
+          class="border transition-all hover:shadow-md flex flex-col justify-between"
+          :class="mc.score >= 80 ? 'border-emerald-200 dark:border-emerald-900/50 bg-gradient-to-b from-emerald-50/20 to-transparent' : 'border-gray-200 dark:border-gray-800'"
+        >
+          <div class="space-y-3">
+            <!-- Header: Name & Match Badge -->
+            <div class="flex items-start justify-between gap-3">
+              <div class="flex items-center gap-3">
+                <div class="grid size-11 place-items-center rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 text-white font-black text-sm shrink-0 shadow-xs">
+                  {{ mc.profile.fullName ? mc.profile.fullName.charAt(0).toUpperCase() : 'C' }}
+                </div>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <h3 class="font-bold text-base text-gray-950 dark:text-white">{{ mc.profile.fullName || 'Candidate' }}</h3>
+                    <span v-if="mc.profile.isFastTrackPro" class="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+                      ⚡ Pro
+                    </span>
+                  </div>
+                  <p class="text-xs text-gray-500">{{ mc.profile.city || 'Remote' }} · {{ mc.profile.experience || 'Fresher / Experienced' }}</p>
+                </div>
+              </div>
+
+              <UBadge
+                :color="mc.badgeColor"
+                variant="subtle"
+                size="sm"
+                :label="mc.label"
+                class="font-bold shrink-0"
+              />
+            </div>
+
+            <!-- Matched Skills -->
+            <div class="space-y-1.5 pt-1">
+              <div class="flex items-center justify-between text-[11px] font-bold">
+                <span class="text-gray-400 uppercase tracking-wider">Matched Skills ({{ mc.matchedSkills.length }})</span>
+                <span class="text-emerald-600 dark:text-emerald-400 font-semibold">{{ mc.score }}% Fit</span>
+              </div>
+              <div class="flex flex-wrap gap-1">
+                <span
+                  v-for="skill in mc.matchedSkills"
+                  :key="skill"
+                  class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                >
+                  <UIcon name="i-lucide-check" class="size-3 text-emerald-600" />
+                  {{ skill }}
+                </span>
+                <span
+                  v-for="skill in mc.missingSkills.slice(0, 2)"
+                  :key="skill"
+                  class="inline-flex items-center gap-1 rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                >
+                  +{{ skill }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Bio / Notes -->
+            <p v-if="mc.profile.bio" class="text-xs text-gray-600 dark:text-gray-300 line-clamp-2 italic bg-gray-50 dark:bg-gray-800/40 p-2 rounded-lg">
+              "{{ mc.profile.bio }}"
+            </p>
+          </div>
+
+          <!-- Bottom Actions -->
+          <div class="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between gap-2">
+            <span class="text-[11px] text-gray-500 font-medium">
+              {{ mc.profile.email }}
+            </span>
+            <div class="flex items-center gap-2">
+              <UButton
+                v-if="invitedCandidates[mc.profile.userId]"
+                size="xs"
+                color="success"
+                variant="soft"
+                icon="i-lucide-check"
+                label="Invited"
+                disabled
+              />
+              <UButton
+                v-else
+                size="xs"
+                color="primary"
+                variant="solid"
+                icon="i-lucide-send"
+                label="Invite to Apply"
+                @click="inviteCandidate(mc.profile)"
               />
             </div>
           </div>

@@ -1,10 +1,16 @@
 <script setup lang="ts">
 const store = useDataStore()
+const { currentUser } = useAuth()
+const { calculateJobMatch } = useJobMatching()
 
 const search = ref('')
 const selectedType = ref<string | null>(null)
+const onlyBestMatches = ref(false)
 
 const allJobs = computed(() => store.getPublishedJobs())
+const candidateProfile = computed(() => {
+  return currentUser.value ? store.getProfileByUserId(currentUser.value.id) : null
+})
 
 const jobTypes = computed(() => {
   const types = [...new Set(allJobs.value.map(j => j.type))]
@@ -22,13 +28,28 @@ const filteredJobs = computed(() => {
   if (selectedType.value) {
     jobs = jobs.filter(j => j.type === selectedType.value)
   }
-  // Prioritize Featured Urgent jobs to top of list
+  if (onlyBestMatches.value && candidateProfile.value) {
+    jobs = jobs.filter(j => calculateJobMatch(j, candidateProfile.value).score >= 60)
+  }
+
+  // Prioritize Featured Urgent jobs & highest compatibility
   return [...jobs].sort((a, b) => {
+    if (candidateProfile.value && onlyBestMatches.value) {
+      return calculateJobMatch(b, candidateProfile.value).score - calculateJobMatch(a, candidateProfile.value).score
+    }
     if (a.isFeatured && !b.isFeatured) return -1
     if (!a.isFeatured && b.isFeatured) return 1
+    if (candidateProfile.value) {
+      return calculateJobMatch(b, candidateProfile.value).score - calculateJobMatch(a, candidateProfile.value).score
+    }
     return 0
   })
 })
+
+function getMatchForJob(job: any) {
+  if (!candidateProfile.value) return null
+  return calculateJobMatch(job, candidateProfile.value)
+}
 
 const typeColors: Record<string, string> = {
   'Full-time': 'from-emerald-500 to-teal-600',
@@ -72,6 +93,15 @@ function getBgColor(type: string) {
             >
           </div>
           <div class="flex items-center gap-2 flex-wrap">
+            <button
+              v-if="candidateProfile"
+              class="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-all shadow-2xs"
+              :class="onlyBestMatches ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-xs ring-2 ring-emerald-400/20' : 'bg-white text-gray-700 border border-gray-200 hover:border-emerald-500 hover:text-emerald-700 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'"
+              @click="onlyBestMatches = !onlyBestMatches"
+            >
+              <UIcon name="i-lucide-sparkles" class="size-3.5 text-emerald-500" />
+              <span>🎯 Best Matches for Me</span>
+            </button>
             <span class="text-xs text-gray-400">Filter:</span>
             <button
               v-for="type in jobTypes"
@@ -137,7 +167,17 @@ function getBgColor(type: string) {
                   </h2>
                   <p class="mt-0.5 text-sm text-gray-500">{{ job.company }}</p>
                 </div>
-                <div class="flex items-center gap-1.5 shrink-0">
+                <div class="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                  <!-- Personalized Match Badge -->
+                  <span
+                    v-if="getMatchForJob(job)"
+                    class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold shadow-2xs"
+                    :class="getMatchForJob(job)?.score >= 85 ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : getMatchForJob(job)?.score >= 70 ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300' : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'"
+                  >
+                    <UIcon name="i-lucide-sparkles" class="size-3" />
+                    {{ getMatchForJob(job)?.score }}% Match
+                  </span>
+
                   <span
                     v-if="job.isFeatured"
                     class="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-2.5 py-0.5 text-[10px] font-bold text-white shadow-xs"

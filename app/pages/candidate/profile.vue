@@ -134,12 +134,16 @@ function removePhoto() {
   if (fileInput.value) fileInput.value.value = ''
 }
 
+const { getRecommendedJobsForCandidate } = useJobMatching()
+const matchedJobsModalOpen = ref(false)
+const topMatchedJobs = ref<any[]>([])
+
 function saveProfile() {
   if (!currentUser.value) return
   saving.value = true
   saved.value = false
 
-  store.upsertProfile({
+  const updatedProfile = {
     userId: currentUser.value.id,
     fullName: form.fullName,
     email: form.email,
@@ -154,11 +158,24 @@ function saveProfile() {
     profilePhotoUrl: form.profilePhotoUrl,
     upiId: form.upiId,
     updatedAt: new Date().toISOString()
-  })
+  }
+
+  store.upsertProfile(updatedProfile)
 
   setTimeout(() => {
     saving.value = false
     saved.value = true
+
+    // Compute smart matched jobs
+    const matches = getRecommendedJobsForCandidate(updatedProfile, store.getJobs())
+      .filter(m => m.score >= 50)
+      .slice(0, 3)
+
+    if (matches.length > 0) {
+      topMatchedJobs.value = matches
+      matchedJobsModalOpen.value = true
+    }
+
     setTimeout(() => { saved.value = false }, 3000)
   }, 500)
 }
@@ -565,5 +582,87 @@ async function updatePassword() {
         </div>
       </div>
     </div>
+
+    <!-- ── Instant Match Discovery Modal ────────────────────────────────────── -->
+    <div
+      v-if="matchedJobsModalOpen"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+    >
+      <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-900 border border-gray-200 dark:border-gray-800 space-y-4">
+        <div class="flex items-center justify-between border-b border-gray-100 pb-3 dark:border-gray-800">
+          <div class="flex items-center gap-2.5">
+            <div class="grid size-9 place-items-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400">
+              <UIcon name="i-lucide-sparkles" class="size-5" />
+            </div>
+            <div>
+              <h3 class="font-bold text-base text-gray-950 dark:text-white">Profile Updated! Matching Jobs Found</h3>
+              <p class="text-xs text-gray-500">Based on your skills &amp; background</p>
+            </div>
+          </div>
+          <button class="text-gray-400 hover:text-gray-600 dark:hover:text-white" @click="matchedJobsModalOpen = false">
+            <UIcon name="i-lucide-x" class="size-5" />
+          </button>
+        </div>
+
+        <p class="text-xs text-gray-600 dark:text-gray-300">
+          We matched your profile with active employer openings. Here are the top roles you are qualified for right now:
+        </p>
+
+        <div class="space-y-2.5 max-h-72 overflow-y-auto">
+          <div
+            v-for="rec in topMatchedJobs"
+            :key="rec.job.id"
+            class="rounded-xl border border-gray-200 bg-gray-50/60 p-3 dark:border-gray-800 dark:bg-gray-800/40 flex items-center justify-between gap-3"
+          >
+            <div class="min-w-0">
+              <div class="flex items-center gap-2">
+                <p class="font-bold text-sm text-gray-950 dark:text-white truncate">{{ rec.job.title }}</p>
+                <UBadge :color="rec.badgeColor" variant="subtle" size="xs" :label="rec.label" />
+              </div>
+              <p class="text-xs text-gray-500 mt-0.5">{{ rec.job.company }} · {{ rec.job.salary }}</p>
+              <div class="flex flex-wrap gap-1 mt-1.5">
+                <span
+                  v-for="skill in rec.matchedSkills.slice(0, 3)"
+                  :key="skill"
+                  class="rounded bg-emerald-100/70 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                >
+                  ✓ {{ skill }}
+                </span>
+              </div>
+            </div>
+
+            <UButton
+              :to="`/jobs/${rec.job.id}`"
+              size="xs"
+              color="primary"
+              variant="solid"
+              label="Apply"
+              icon="i-lucide-arrow-right"
+              class="shrink-0"
+              @click="matchedJobsModalOpen = false"
+            />
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-800">
+          <UButton
+            to="/jobs"
+            size="xs"
+            variant="ghost"
+            color="neutral"
+            label="Browse All Jobs"
+            @click="matchedJobsModalOpen = false"
+          />
+          <UButton
+            to="/candidate"
+            size="xs"
+            color="primary"
+            label="Go to My Dashboard"
+            @click="matchedJobsModalOpen = false"
+          />
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
