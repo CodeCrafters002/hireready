@@ -11,7 +11,9 @@ import type {
   AppNotification,
   Gig,
   GigApplication,
-  GigCategory
+  GigCategory,
+  ChatMessage,
+  Conversation
 } from '~/types/portal'
 
 // ─── Keys ─────────────────────────────────────────────────────────────────────
@@ -28,6 +30,8 @@ const KEYS = {
   notifications: 'hr_notifications',
   gigs: 'hr_gigs',
   gigApplications: 'hr_gig_applications',
+  conversations: 'hr_conversations',
+  chatMessages: 'hr_chat_messages',
   seeded: 'hr_seeded'
 } as const
 
@@ -705,6 +709,273 @@ export function useDataStore() {
     return updated
   }
 
+  // ── Direct In-App Chat & Messaging ──────────────────────────────────────────
+  function getConversations(): Conversation[] {
+    return read<Conversation>(KEYS.conversations)
+  }
+
+  function saveConversations(items: Conversation[]): void {
+    write(KEYS.conversations, items)
+  }
+
+  function getConversationsForUser(userId: string, role: 'candidate' | 'employer' | 'admin'): Conversation[] {
+    ensureChatSeeded(userId, role)
+    const convs = getConversations()
+    if (role === 'candidate') {
+      return convs.filter(c => c.candidateId === userId).sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime())
+    }
+    if (role === 'employer') {
+      return convs.filter(c => c.employerId === userId || !c.employerId || c.employerCompany).sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime())
+    }
+    return convs.sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime())
+  }
+
+  function getConversationById(id: string): Conversation | undefined {
+    return getConversations().find(c => c.id === id)
+  }
+
+  function getOrCreateConversation(params: {
+    jobId?: string
+    jobTitle?: string
+    companyName?: string
+    candidateId: string
+    candidateName: string
+    candidateEmail?: string
+    employerId: string
+    employerName: string
+    employerCompany?: string
+    initialMessage?: string
+  }): Conversation {
+    const convs = getConversations()
+    let existing = convs.find(c =>
+      c.candidateId === params.candidateId &&
+      (params.jobId ? c.jobId === params.jobId : (c.employerId === params.employerId || c.employerCompany === params.employerCompany))
+    )
+
+    if (!existing) {
+      const newConv: Conversation = {
+        id: uid('conv'),
+        jobId: params.jobId,
+        jobTitle: params.jobTitle,
+        companyName: params.companyName || params.employerCompany || 'Hiring Partner',
+        candidateId: params.candidateId,
+        candidateName: params.candidateName,
+        candidateEmail: params.candidateEmail,
+        employerId: params.employerId,
+        employerName: params.employerName,
+        employerCompany: params.employerCompany || params.companyName,
+        lastMessageText: params.initialMessage || 'Started conversation',
+        lastMessageAt: new Date().toISOString(),
+        unreadCandidateCount: params.initialMessage ? 1 : 0,
+        unreadEmployerCount: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+      convs.unshift(newConv)
+      saveConversations(convs)
+      existing = newConv
+
+      if (params.initialMessage) {
+        sendMessage({
+          conversationId: newConv.id,
+          senderId: params.employerId,
+          senderName: params.employerName,
+          senderRole: 'employer',
+          text: params.initialMessage
+        })
+      }
+    }
+
+    return existing
+  }
+
+  function getChatMessages(conversationId?: string): ChatMessage[] {
+    const all = read<ChatMessage>(KEYS.chatMessages)
+    if (!conversationId) return all
+    return all.filter(m => m.conversationId === conversationId).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+  }
+
+  function saveChatMessages(messages: ChatMessage[]): void {
+    write(KEYS.chatMessages, messages)
+  }
+
+  function sendMessage(params: {
+    conversationId: string
+    senderId: string
+    senderName: string
+    senderRole: 'candidate' | 'employer' | 'admin'
+    text: string
+    quickAction?: ChatMessage['quickAction']
+  }): ChatMessage {
+    const all = read<ChatMessage>(KEYS.chatMessages)
+    const newMsg: ChatMessage = {
+      id: uid('msg'),
+      conversationId: params.conversationId,
+      senderId: params.senderId,
+      senderName: params.senderName,
+      senderRole: params.senderRole,
+      text: params.text,
+      createdAt: new Date().toISOString(),
+      read: false,
+      quickAction: params.quickAction
+    }
+    all.push(newMsg)
+    saveChatMessages(all)
+
+    // Update conversation last message & unread count
+    const convs = getConversations()
+    const idx = convs.findIndex(c => c.id === params.conversationId)
+    if (idx !== -1) {
+      convs[idx].lastMessageText = params.text
+      convs[idx].lastMessageAt = newMsg.createdAt
+      convs[idx].updatedAt = newMsg.createdAt
+      if (params.senderRole === 'employer') {
+        convs[idx].unreadCandidateCount = (convs[idx].unreadCandidateCount || 0) + 1
+      } else {
+        convs[idx].unreadEmployerCount = (convs[idx].unreadEmployerCount || 0) + 1
+      }
+      saveConversations(convs)
+    }
+
+    return newMsg
+  }
+
+  function markConversationRead(conversationId: string, role: 'candidate' | 'employer' | 'admin'): void {
+    const convs = getConversations()
+    const idx = convs.findIndex(c => c.id === conversationId)
+    if (idx !== -1) {
+      if (role === 'candidate') {
+        convs[idx].unreadCandidateCount = 0
+      } else {
+        convs[idx].unreadEmployerCount = 0
+      }
+      saveConversations(convs)
+    }
+
+    // Also mark individual messages as read
+    const msgs = read<ChatMessage>(KEYS.chatMessages)
+    let changed = false
+    for (const m of msgs) {
+      if (m.conversationId === conversationId && !m.read && m.senderRole !== role) {
+        m.read = true
+        changed = true
+      }
+    }
+    if (changed) {
+      saveChatMessages(msgs)
+    }
+  }
+
+  function getUnreadMessagesCount(userId: string, role: 'candidate' | 'employer'): number {
+    const convs = getConversationsForUser(userId, role)
+    return convs.reduce((acc, c) => acc + (role === 'candidate' ? (c.unreadCandidateCount || 0) : (c.unreadEmployerCount || 0)), 0)
+  }
+
+  function ensureChatSeeded(currentUserId?: string, role?: string): void {
+    if (import.meta.server) return
+    const existing = read<Conversation>(KEYS.conversations)
+    if (existing.length === 0) {
+      const candId = currentUserId || 'cand-seed-1'
+      const conv1Id = 'conv-razorpay-01'
+      const conv2Id = 'conv-flipkart-02'
+
+      const now = new Date()
+      const t1 = new Date(now.getTime() - 2 * 3600 * 1000).toISOString()
+      const t2 = new Date(now.getTime() - 90 * 60 * 1000).toISOString()
+      const t3 = new Date(now.getTime() - 15 * 60 * 1000).toISOString()
+
+      const seededConvs: Conversation[] = [
+        {
+          id: conv1Id,
+          jobId: 'job-1',
+          jobTitle: 'Senior Frontend Engineer (Vue 3 / Nuxt)',
+          companyName: 'Razorpay',
+          candidateId: candId,
+          candidateName: 'Candidate',
+          candidateEmail: 'candidate@hireready.app',
+          employerId: 'emp-razorpay',
+          employerName: 'Kunal Shah',
+          employerCompany: 'Razorpay Talent Team',
+          lastMessageText: 'We loved your profile! Are you available for a 20-min technical screening tomorrow?',
+          lastMessageAt: t3,
+          unreadCandidateCount: 1,
+          unreadEmployerCount: 0,
+          createdAt: t1,
+          updatedAt: t3
+        },
+        {
+          id: conv2Id,
+          jobId: 'job-2',
+          jobTitle: 'Full Stack Engineer',
+          companyName: 'Flipkart',
+          candidateId: candId,
+          candidateName: 'Candidate',
+          candidateEmail: 'candidate@hireready.app',
+          employerId: 'emp-flipkart',
+          employerName: 'Priya Sharma',
+          employerCompany: 'Flipkart Engineering Recruiting',
+          lastMessageText: 'Your application has been received. Please share your live portfolio link.',
+          lastMessageAt: t2,
+          unreadCandidateCount: 1,
+          unreadEmployerCount: 0,
+          createdAt: t2,
+          updatedAt: t2
+        }
+      ]
+
+      const seededMsgs: ChatMessage[] = [
+        {
+          id: 'msg-1',
+          conversationId: conv1Id,
+          senderId: 'emp-razorpay',
+          senderName: 'Kunal Shah (Razorpay)',
+          senderRole: 'employer',
+          text: 'Hello! Thanks for applying to the Senior Frontend Engineer position at Razorpay.',
+          createdAt: t1,
+          read: true
+        },
+        {
+          id: 'msg-2',
+          conversationId: conv1Id,
+          senderId: candId,
+          senderName: 'You',
+          senderRole: 'candidate',
+          text: 'Hi Kunal! Thank you for reviewing my profile. Really excited about the opportunity!',
+          createdAt: t2,
+          read: true
+        },
+        {
+          id: 'msg-3',
+          conversationId: conv1Id,
+          senderId: 'emp-razorpay',
+          senderName: 'Kunal Shah (Razorpay)',
+          senderRole: 'employer',
+          text: 'We loved your profile! Are you available for a 20-min technical screening tomorrow?',
+          createdAt: t3,
+          read: false,
+          quickAction: {
+            type: 'interview_invite',
+            title: '📅 1-Click Schedule Screening Call',
+            url: '/candidate/interviews'
+          }
+        },
+        {
+          id: 'msg-4',
+          conversationId: conv2Id,
+          senderId: 'emp-flipkart',
+          senderName: 'Priya Sharma (Flipkart)',
+          senderRole: 'employer',
+          text: 'Your application has been received. Please share your live portfolio link.',
+          createdAt: t2,
+          read: false
+        }
+      ]
+
+      write(KEYS.conversations, seededConvs)
+      write(KEYS.chatMessages, seededMsgs)
+    }
+  }
+
   return {
     syncWithDatabase,
     // Users
@@ -731,7 +1002,11 @@ export function useDataStore() {
     // 1-Day Gigs & Campus Duties
     getGigs, saveGigs, getGigById, createGig, updateGig,
     getGigApplications, saveGigApplications, getGigApplicationsByGig, getGigApplicationsByCandidate,
-    applyToGig, updateGigApplicationStatus
+    applyToGig, updateGigApplicationStatus,
+    // Direct In-App Chat & Messaging
+    getConversations, saveConversations, getConversationsForUser, getConversationById,
+    getOrCreateConversation, getChatMessages, saveChatMessages, sendMessage,
+    markConversationRead, getUnreadMessagesCount
   }
 }
 

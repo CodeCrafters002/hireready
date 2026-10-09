@@ -7,9 +7,15 @@ const navLinks = computed(() => [
   { to: '/gigs', label: '1-Day Gigs', icon: 'i-lucide-calendar-clock' },
   { to: '/pricing', label: 'Pricing & Plans', icon: 'i-lucide-sparkles' },
   { to: '/application', label: 'Applications', icon: 'i-lucide-file-text', auth: true },
-  ...(isCandidate.value ? [{ to: '/candidate', label: 'Dashboard', icon: 'i-lucide-layout-dashboard' }] : []),
+  ...(isCandidate.value ? [
+    { to: '/candidate', label: 'Dashboard', icon: 'i-lucide-layout-dashboard' },
+    { to: '/candidate/messages', label: 'Messages', icon: 'i-lucide-message-square' }
+  ] : []),
   ...(isAdmin.value ? [{ to: '/admin', label: 'Admin', icon: 'i-lucide-shield-check' }] : []),
-  ...(isEmployer.value ? [{ to: '/employer', label: 'Employer', icon: 'i-lucide-building-2' }] : []),
+  ...(isEmployer.value ? [
+    { to: '/employer', label: 'Employer', icon: 'i-lucide-building-2' },
+    { to: '/employer/messages', label: 'Messages', icon: 'i-lucide-message-square' }
+  ] : []),
 ])
 
 function isActive(path: string) {

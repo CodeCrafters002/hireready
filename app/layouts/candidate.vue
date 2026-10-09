@@ -8,6 +8,10 @@ const notifications = computed(() => {
   return store.getNotificationsByUser(currentUser.value.id)
 })
 const unreadCount = computed(() => notifications.value.filter(n => !n.read).length)
+const unreadMessagesCount = computed(() => {
+  if (!currentUser.value) return 0
+  return store.getUnreadMessagesCount(currentUser.value.id, 'candidate')
+})
 const profile = computed(() => currentUser.value ? store.getProfileByUserId(currentUser.value.id) : null)
 
 const profileCompletion = computed(() => {
@@ -31,6 +35,7 @@ const sidebarOpen = ref(false)
 const navItems = [
   { label: 'Dashboard', icon: 'i-lucide-layout-dashboard', to: '/candidate' },
   { label: 'Profile', icon: 'i-lucide-user', to: '/candidate/profile' },
+  { label: 'Messages & Chat 💬', icon: 'i-lucide-message-square', to: '/candidate/messages' },
   { label: 'FastTrack Pro ⚡', icon: 'i-lucide-zap', to: '/pricing?role=candidate' },
   { label: 'My Applications', icon: 'i-lucide-briefcase', to: '/candidate/applications' },
   { label: 'Assessments', icon: 'i-lucide-file-check', to: '/candidate/assessments' },
@@ -107,6 +112,7 @@ function isActiveRoute(path: string) {
           >
             <UIcon :name="item.icon" class="size-5 shrink-0" />
             <span>{{ item.label }}</span>
+            <UBadge v-if="item.to === '/candidate/messages' && unreadMessagesCount > 0" :label="String(unreadMessagesCount)" color="primary" variant="solid" size="xs" class="ml-auto" />
             <UBadge v-if="item.label === 'Notifications' && unreadCount > 0" :label="String(unreadCount)" color="error" variant="solid" size="xs" class="ml-auto" />
           </NuxtLink>
         </nav>
@@ -125,8 +131,12 @@ function isActiveRoute(path: string) {
           <UButton class="lg:hidden" icon="i-lucide-menu" variant="ghost" color="neutral" @click="sidebarOpen = true" />
           <h1 class="text-lg font-semibold text-gray-950 dark:text-white">Candidate Dashboard</h1>
           <div class="ml-auto flex items-center gap-3">
-            <NuxtLink to="/candidate/notifications" class="relative">
-              <UIcon name="i-lucide-bell" class="size-5 text-gray-500 hover:text-primary" />
+            <NuxtLink to="/candidate/messages" class="relative" title="Direct Recruiter Messages">
+              <UIcon name="i-lucide-message-square" class="size-5 text-gray-500 hover:text-primary transition-colors" />
+              <span v-if="unreadMessagesCount > 0" class="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-indigo-600 text-[10px] font-bold text-white">{{ unreadMessagesCount > 9 ? '9+' : unreadMessagesCount }}</span>
+            </NuxtLink>
+            <NuxtLink to="/candidate/notifications" class="relative" title="Notifications">
+              <UIcon name="i-lucide-bell" class="size-5 text-gray-500 hover:text-primary transition-colors" />
               <span v-if="unreadCount > 0" class="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-red-500 text-[10px] font-bold text-white">{{ unreadCount > 9 ? '9+' : unreadCount }}</span>
             </NuxtLink>
           </div>

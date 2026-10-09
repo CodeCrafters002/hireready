@@ -66,6 +66,29 @@ function inviteCandidate(candidateProfile: any) {
   })
 }
 
+function openCandidateChat(appOrProfile: any, job?: any) {
+  const candidateId = appOrProfile.candidateId || appOrProfile.userId
+  const candidateName = appOrProfile.candidateName || appOrProfile.fullName || 'Candidate'
+  const candidateEmail = appOrProfile.email
+  const jobId = appOrProfile.jobId || job?.id || currentMatchingJob.value?.id
+  const targetJob = getJob(jobId) || currentMatchingJob.value
+
+  const conv = store.getOrCreateConversation({
+    jobId: targetJob?.id,
+    jobTitle: targetJob?.title,
+    companyName: targetJob?.company || (currentUser.value as any)?.company || 'Hiring Partner',
+    candidateId,
+    candidateName,
+    candidateEmail,
+    employerId: currentUser.value?.id || 'emp-lead',
+    employerName: currentUser.value?.name || 'Recruiter Lead',
+    employerCompany: (currentUser.value as any)?.company || 'Hiring Team',
+    initialMessage: `Hi ${candidateName}! Thanks for your interest in the ${targetJob?.title || 'position'}. When are you available for a quick chat?`
+  })
+
+  navigateTo(`/employer/messages?conversationId=${conv.id}`)
+}
+
 // Filtered Job Applications (shows ALL applications without prematurely hiding them)
 const filteredJobApplications = computed(() => {
   let list = allApplications.value
@@ -903,6 +926,14 @@ async function handlePostJob() {
                 @click="handleDecision(app.id, 'submitted_to_client')"
               />
               <UButton
+                size="sm"
+                color="neutral"
+                variant="outline"
+                icon="i-lucide-message-square"
+                label="Message"
+                @click="openCandidateChat(app)"
+              />
+              <UButton
                 v-if="app.status !== 'rejected'"
                 size="sm"
                 color="error"
@@ -1122,6 +1153,14 @@ async function handlePostJob() {
               {{ mc.profile.email }}
             </span>
             <div class="flex items-center gap-2">
+              <UButton
+                size="xs"
+                color="neutral"
+                variant="outline"
+                icon="i-lucide-message-square"
+                label="Chat"
+                @click="openCandidateChat(mc.profile, currentMatchingJob)"
+              />
               <UButton
                 v-if="invitedCandidates[mc.profile.userId]"
                 size="xs"

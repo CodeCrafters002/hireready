@@ -1,10 +1,17 @@
 <script setup lang="ts">
 const { currentUser, signOut } = useAuth()
+const store = useDataStore()
 const route = useRoute()
 const sidebarOpen = ref(false)
 
+const unreadMessagesCount = computed(() => {
+  if (!currentUser.value) return 0
+  return store.getUnreadMessagesCount(currentUser.value.id, 'employer')
+})
+
 const navItems = [
   { label: 'Client Dashboard', icon: 'i-lucide-layout-dashboard', to: '/employer' },
+  { label: 'Candidate Messages 💬', icon: 'i-lucide-message-square', to: '/employer/messages' },
   { label: '1-Day Gigs & Shifts', icon: 'i-lucide-calendar-clock', to: '/employer/gigs' },
   { label: 'Plans & Unlock Credits', icon: 'i-lucide-sparkles', to: '/pricing?role=employer' },
   { label: 'Company Profile & Settings', icon: 'i-lucide-building-2', to: '/employer/profile' },
@@ -72,6 +79,7 @@ function isActiveRoute(path: string) {
           >
             <UIcon :name="item.icon" class="size-5 shrink-0" />
             <span>{{ item.label }}</span>
+            <UBadge v-if="item.to === '/employer/messages' && unreadMessagesCount > 0" :label="String(unreadMessagesCount)" color="primary" variant="solid" size="xs" class="ml-auto" />
           </NuxtLink>
         </nav>
 
@@ -104,6 +112,10 @@ function isActiveRoute(path: string) {
             <h1 class="text-lg font-semibold text-gray-950 dark:text-white">Employer / Client Workspace</h1>
           </div>
           <div class="flex items-center gap-3">
+            <NuxtLink to="/employer/messages" class="relative" title="Candidate Messages">
+              <UIcon name="i-lucide-message-square" class="size-5 text-gray-500 hover:text-emerald-600 transition-colors" />
+              <span v-if="unreadMessagesCount > 0" class="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-emerald-600 text-[10px] font-bold text-white">{{ unreadMessagesCount > 9 ? '9+' : unreadMessagesCount }}</span>
+            </NuxtLink>
             <NuxtLink
               to="/employer/profile"
               class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"

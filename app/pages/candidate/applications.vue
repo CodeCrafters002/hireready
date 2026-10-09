@@ -57,6 +57,24 @@ function getStepIndex(status: string): number {
   }
   return map[status] ?? 0
 }
+
+function openChatWithHiringTeam(app: any) {
+  const job = store.getJobById(app.jobId)
+  const conv = store.getOrCreateConversation({
+    jobId: app.jobId,
+    jobTitle: job?.title || 'Open Position',
+    companyName: job?.company || 'Hiring Team',
+    candidateId: currentUser.value?.id || app.candidateId,
+    candidateName: currentUser.value?.name || app.candidateName || 'Candidate',
+    candidateEmail: currentUser.value?.email || app.email,
+    employerId: 'emp-hiring-lead',
+    employerName: 'Talent Acquisition',
+    employerCompany: job?.company || 'Hiring Team',
+    initialMessage: `Hi, I applied for the ${job?.title || 'role'} and would love to follow up on my application status.`
+  })
+
+  navigateTo(`/candidate/messages?conversationId=${conv.id}`)
+}
 </script>
 
 <template>
@@ -160,7 +178,17 @@ function getStepIndex(status: string): number {
             </div>
           </div>
 
-          <UButton :to="`/application/${app.id}`" size="sm" label="View Details" trailing-icon="i-lucide-arrow-right" />
+          <div class="flex items-center gap-2 shrink-0">
+            <UButton
+              size="sm"
+              variant="outline"
+              color="primary"
+              icon="i-lucide-message-square"
+              label="Message Hiring Team"
+              @click="openChatWithHiringTeam(app)"
+            />
+            <UButton :to="`/application/${app.id}`" size="sm" label="View Details" trailing-icon="i-lucide-arrow-right" />
+          </div>
         </div>
       </UCard>
     </div>

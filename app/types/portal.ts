@@ -223,3 +223,43 @@ export interface AppNotification {
   read: boolean
   createdAt: string
 }
+
+// ─── Direct In-App Chat & Messaging ───────────────────────────────────────────
+export interface ChatAction {
+  type: 'interview_invite' | 'request_portfolio' | 'offer_letter' | 'custom'
+  title: string
+  url?: string
+}
+
+export interface ChatMessage {
+  id: string
+  conversationId: string
+  senderId: string
+  senderName: string
+  senderRole: 'candidate' | 'employer' | 'admin'
+  text: string
+  createdAt: string
+  read: boolean
+  quickAction?: ChatAction
+}
+
+export interface Conversation {
+  id: string
+  jobId?: string
+  jobTitle?: string
+  companyName?: string
+  candidateId: string
+  candidateName: string
+  candidateEmail?: string
+  candidateAvatar?: string
+  employerId: string
+  employerName: string
+  employerCompany?: string
+  employerAvatar?: string
+  lastMessageText: string
+  lastMessageAt: string
+  unreadCandidateCount: number
+  unreadEmployerCount: number
+  createdAt: string
+  updatedAt: string
+}
