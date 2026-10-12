@@ -147,6 +147,9 @@ export function useDataStore() {
         saveGigApplications(gigAppsData)
       }
 
+      // Sync chat conversations and messages with MongoDB
+      await syncChatWithDatabase()
+
       purgeDemoData()
     } catch (err) {
       console.warn('[DataStore] Database sync non-fatal error:', err)
@@ -713,6 +716,94 @@ export function useDataStore() {
   }
 
   // ── Direct In-App Chat & Messaging ──────────────────────────────────────────
+  async function syncChatWithDatabase(): Promise<void> {
+    if (import.meta.server) return
+    try {
+      const [remoteConvs, remoteMsgs] = await Promise.all([
+        $fetch<Conversation[]>('/api/chat/conversations?role=admin').catch(() => null),
+        $fetch<ChatMessage[]>('/api/chat/messages').catch(() => null)
+      ])
+
+      let hasConvChanges = false
+      let hasMsgChanges = false
+
+      const localConvs = read<Conversation>(KEYS.conversations)
+      const convMap = new Map<string, Conversation>()
+      for (const c of localConvs) {
+        convMap.set(c.id, c)
+      }
+
+      if (remoteConvs && Array.isArray(remoteConvs)) {
+        for (const rc of remoteConvs) {
+          const local = convMap.get(rc.id)
+          if (!local) {
+            convMap.set(rc.id, rc)
+            hasConvChanges = true
+          } else {
+            const remoteTime = new Date(rc.updatedAt || rc.lastMessageAt || 0).getTime()
+            const localTime = new Date(local.updatedAt || local.lastMessageAt || 0).getTime()
+            if (remoteTime > localTime || rc.lastMessageText !== local.lastMessageText) {
+              convMap.set(rc.id, { ...local, ...rc })
+              hasConvChanges = true
+            }
+          }
+        }
+      }
+
+      // Push local conversations missing on remote to MongoDB
+      if (remoteConvs && Array.isArray(remoteConvs)) {
+        const remoteIds = new Set(remoteConvs.map(c => c.id))
+        for (const local of localConvs) {
+          if (!remoteIds.has(local.id)) {
+            $fetch('/api/chat/conversations', { method: 'POST', body: local }).catch(() => null)
+          }
+        }
+      }
+
+      if (hasConvChanges) {
+        write(KEYS.conversations, Array.from(convMap.values()))
+      }
+
+      const localMsgs = read<ChatMessage>(KEYS.chatMessages)
+      const msgMap = new Map<string, ChatMessage>()
+      for (const m of localMsgs) {
+        msgMap.set(m.id, m)
+      }
+
+      if (remoteMsgs && Array.isArray(remoteMsgs)) {
+        for (const rm of remoteMsgs) {
+          if (!msgMap.has(rm.id)) {
+            msgMap.set(rm.id, rm)
+            hasMsgChanges = true
+          }
+        }
+      }
+
+      // Push local messages missing on remote to MongoDB
+      if (remoteMsgs && Array.isArray(remoteMsgs)) {
+        const remoteMsgIds = new Set(remoteMsgs.map(m => m.id))
+        for (const local of localMsgs) {
+          if (!remoteMsgIds.has(local.id)) {
+            $fetch('/api/chat/messages', { method: 'POST', body: local }).catch(() => null)
+          }
+        }
+      }
+
+      if (hasMsgChanges) {
+        const mergedMsgs = Array.from(msgMap.values()).sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        )
+        write(KEYS.chatMessages, mergedMsgs)
+      }
+
+      if (hasConvChanges || hasMsgChanges) {
+        chatVersion.value++
+      }
+    } catch (err) {
+      console.warn('[DataStore] Chat sync non-fatal error:', err)
+    }
+  }
+
   function getConversations(): Conversation[] {
     void chatVersion.value
     return read<Conversation>(KEYS.conversations)
@@ -732,7 +823,14 @@ export function useDataStore() {
     }
 
     if (role === 'candidate') {
-      let userConvs = convs.filter(c => c.candidateId === userId || c.isSupportChat)
+      const currentEmail = read<User>(KEYS.users).find(u => u.id === userId)?.email?.toLowerCase()
+
+      let userConvs = convs.filter(c => {
+        const isDirectCandidate = c.candidateId === userId
+        const isEmailMatch = Boolean(currentEmail && c.candidateEmail && c.candidateEmail.toLowerCase() === currentEmail)
+        const isGenericSupport = Boolean(c.isSupportChat && (c.candidateId === 'cand-seed-1' || c.candidateId === 'demo-candidate' || !c.candidateId || c.candidateId === userId || isEmailMatch))
+        return isDirectCandidate || isEmailMatch || isGenericSupport
+      })
 
       // If user has no conversations yet, bind sample recruiter conversations to this candidate
       if (userConvs.length === 0 && convs.length > 0) {
@@ -781,6 +879,9 @@ export function useDataStore() {
       convs[idx].updatedAt = new Date().toISOString()
       saveConversations(convs)
 
+      // Sync to MongoDB
+      $fetch('/api/chat/conversations', { method: 'POST', body: convs[idx] }).catch(() => null)
+
       const msgs = read<ChatMessage>(KEYS.chatMessages)
       const notice: ChatMessage = {
         id: uid('msg-sys'),
@@ -795,6 +896,9 @@ export function useDataStore() {
       }
       msgs.push(notice)
       saveChatMessages(msgs)
+
+      // Sync notice to MongoDB
+      $fetch('/api/chat/messages', { method: 'POST', body: notice }).catch(() => null)
     }
   }
 
@@ -805,6 +909,9 @@ export function useDataStore() {
       convs[idx].requestStatus = 'declined'
       convs[idx].updatedAt = new Date().toISOString()
       saveConversations(convs)
+
+      // Sync to MongoDB
+      $fetch('/api/chat/conversations', { method: 'POST', body: convs[idx] }).catch(() => null)
 
       const msgs = read<ChatMessage>(KEYS.chatMessages)
       const notice: ChatMessage = {
@@ -820,6 +927,9 @@ export function useDataStore() {
       }
       msgs.push(notice)
       saveChatMessages(msgs)
+
+      // Sync notice to MongoDB
+      $fetch('/api/chat/messages', { method: 'POST', body: notice }).catch(() => null)
     }
   }
 
@@ -841,7 +951,8 @@ export function useDataStore() {
     const convs = getConversations()
     let existing = convs.find(c =>
       (params.jobId && c.jobId === params.jobId && (c.candidateId === params.candidateId || !c.candidateId || c.candidateId === 'demo-candidate')) ||
-      (c.candidateId === params.candidateId && (c.employerId === params.employerId || c.employerCompany === params.employerCompany))
+      (c.candidateId === params.candidateId && (c.employerId === params.employerId || c.employerCompany === params.employerCompany)) ||
+      (params.isSupportChat && c.isSupportChat && (c.candidateId === params.candidateId || (params.candidateEmail && c.candidateEmail?.toLowerCase() === params.candidateEmail.toLowerCase())))
     )
 
     if (existing && existing.candidateId !== params.candidateId) {
@@ -881,6 +992,9 @@ export function useDataStore() {
       saveConversations(convs)
       existing = newConv
 
+      // Sync conversation to MongoDB
+      $fetch('/api/chat/conversations', { method: 'POST', body: newConv }).catch(() => null)
+
       if (params.initialMessage) {
         sendMessage({
           conversationId: newConv.id,
@@ -891,6 +1005,9 @@ export function useDataStore() {
         })
       }
     } else {
+      // Sync existing to MongoDB
+      $fetch('/api/chat/conversations', { method: 'POST', body: existing }).catch(() => null)
+
       // If conversation already existed, ensure messages are present
       const msgs = read<ChatMessage>(KEYS.chatMessages).filter(m => m.conversationId === existing!.id)
       if (msgs.length === 0 && params.initialMessage) {
@@ -935,6 +1052,7 @@ export function useDataStore() {
           }
           all.push(initMsg)
           saveChatMessages(all)
+          $fetch('/api/chat/messages', { method: 'POST', body: initMsg }).catch(() => null)
           filtered = [initMsg]
         }
       }
@@ -973,7 +1091,12 @@ export function useDataStore() {
     all.push(newMsg)
     saveChatMessages(all)
 
-    // Update conversation last message & unread count
+    // Push new message to MongoDB
+    $fetch('/api/chat/messages', { method: 'POST', body: newMsg }).catch(err => {
+      console.warn('[DataStore] Failed posting message to MongoDB:', err)
+    })
+
+    // Update conversation last message & unread count locally
     const convs = getConversations()
     const idx = convs.findIndex(c => c.id === params.conversationId)
     if (idx !== -1) {
@@ -987,6 +1110,9 @@ export function useDataStore() {
         convs[idx].unreadCandidateCount = (convs[idx].unreadCandidateCount || 0) + 1
       }
       saveConversations(convs)
+
+      // Push updated conversation to MongoDB
+      $fetch('/api/chat/conversations', { method: 'POST', body: convs[idx] }).catch(() => null)
     }
 
     return newMsg
@@ -1004,6 +1130,7 @@ export function useDataStore() {
         convs[idx].unreadAdminCount = 0
       }
       saveConversations(convs)
+      $fetch('/api/chat/conversations', { method: 'POST', body: convs[idx] }).catch(() => null)
     }
 
     // Also mark individual messages as read
@@ -1214,7 +1341,7 @@ export function useDataStore() {
     getGigApplications, saveGigApplications, getGigApplicationsByGig, getGigApplicationsByCandidate,
     applyToGig, updateGigApplicationStatus,
     // Direct In-App Chat & Messaging
-    chatVersion,
+    chatVersion, syncChatWithDatabase,
     getConversations, saveConversations, getConversationsForUser, getConversationById,
     getOrCreateConversation, getChatMessages, saveChatMessages, sendMessage,
     markConversationRead, getUnreadMessagesCount,

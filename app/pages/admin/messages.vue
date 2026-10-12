@@ -7,9 +7,19 @@ const store = useDataStore()
 const { currentUser, hydrate } = useAuth()
 const route = useRoute()
 
+let pollInterval: ReturnType<typeof setInterval> | null = null
+
 onMounted(() => {
   hydrate()
+  store.syncChatWithDatabase()
   scrollToBottom(true)
+  pollInterval = setInterval(() => {
+    store.syncChatWithDatabase()
+  }, 2500)
+})
+
+onUnmounted(() => {
+  if (pollInterval) clearInterval(pollInterval)
 })
 
 // ── Reactive Data ─────────────────────────────────────────────────────────────
@@ -29,21 +39,62 @@ const filteredConversations = computed(() => {
   let list = allConversations.value
 
   if (selectedRoleFilter.value === 'candidate') {
-    list = list.filter(c => c.candidateId)
+    list = list.filter(c => c.isSupportChat || c.employerId === 'admin-support' || c.initiatedByRole === 'candidate')
   } else if (selectedRoleFilter.value === 'employer') {
-    list = list.filter(c => !c.isSupportChat && c.employerId !== 'admin-support')
+    list = list.filter(c => (!c.isSupportChat || c.employerId !== 'admin-support') && (c.companyName || c.employerCompany))
   }
 
   if (!searchQuery.value.trim()) return list
   const q = searchQuery.value.toLowerCase().trim()
   return list.filter(c =>
     (c.candidateName && c.candidateName.toLowerCase().includes(q)) ||
+    (c.candidateEmail && c.candidateEmail.toLowerCase().includes(q)) ||
     (c.companyName && c.companyName.toLowerCase().includes(q)) ||
     (c.employerName && c.employerName.toLowerCase().includes(q)) ||
     (c.jobTitle && c.jobTitle.toLowerCase().includes(q)) ||
     (c.lastMessageText && c.lastMessageText.toLowerCase().includes(q))
   )
 })
+
+const matchingDirectoryUsers = computed(() => {
+  if (!searchQuery.value.trim()) return []
+  const q = searchQuery.value.toLowerCase().trim()
+  const allUsers = store.getUsers()
+  return allUsers.filter(u => {
+    if (u.id === currentUser.value?.id) return false
+    return (
+      (u.name && u.name.toLowerCase().includes(q)) ||
+      (u.email && u.email.toLowerCase().includes(q)) ||
+      (u.company && u.company.toLowerCase().includes(q)) ||
+      (u.role && u.role.toLowerCase().includes(q))
+    )
+  }).slice(0, 6)
+})
+
+function startDirectSupervisorChat(user: any) {
+  const isCandidate = user.role === 'candidate'
+  const isEmployer = user.role === 'employer'
+
+  const conv = store.getOrCreateConversation({
+    jobTitle: isCandidate ? 'Direct Candidate Advisory Hotline' : 'Direct Employer Partnership Hotline',
+    companyName: isEmployer ? (user.company || user.name) : 'HireReady Official Support',
+    candidateId: isCandidate ? user.id : 'demo-candidate',
+    candidateName: isCandidate ? user.name : 'Talent Inquiries',
+    candidateEmail: isCandidate ? user.email : 'support@hireready.app',
+    employerId: isEmployer ? user.id : 'admin-support',
+    employerName: isEmployer ? user.name : 'HireReady Support (Admin)',
+    employerCompany: isEmployer ? (user.company || user.name) : 'HireReady Platform Team',
+    initialMessage: `Hello ${user.name}! This is HireReady Platform Administration. How can we assist you with your portal activities today?`,
+    initialSenderRole: 'admin',
+    requestStatus: 'accepted',
+    isSupportChat: true
+  })
+
+  selectedConvId.value = conv.id
+  searchQuery.value = ''
+  mobileShowChat.value = true
+  scrollToBottom()
+}
 
 // Auto-select query param or first conversation
 watch([filteredConversations, () => route.query.conversationId], ([list, queryId]) => {
@@ -248,6 +299,35 @@ const adminTemplates = [
 
         <!-- Conversation List -->
         <div class="flex-1 min-h-0 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800/60">
+          <!-- Start New Chat Search Results -->
+          <div v-if="searchQuery.trim() && matchingDirectoryUsers.length > 0" class="p-2.5 bg-red-50/50 dark:bg-red-950/30 border-b border-red-100 dark:border-red-900/50">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-red-600 dark:text-red-400 px-1.5 mb-1.5">
+              Platform Directory ({{ matchingDirectoryUsers.length }})
+            </p>
+            <div class="space-y-1">
+              <button
+                v-for="user in matchingDirectoryUsers"
+                :key="user.id"
+                type="button"
+                class="w-full text-left p-2 rounded-xl transition flex items-center justify-between gap-2 bg-white dark:bg-gray-800/90 shadow-2xs hover:ring-1 hover:ring-red-500"
+                @click="startDirectSupervisorChat(user)"
+              >
+                <div class="flex items-center gap-2 min-w-0">
+                  <div
+                    class="size-7 rounded-full text-white font-bold text-xs grid place-items-center shrink-0"
+                    :class="user.role === 'candidate' ? 'bg-blue-600' : user.role === 'employer' ? 'bg-emerald-600' : 'bg-red-600'"
+                  >
+                    {{ user.name ? user.name.charAt(0).toUpperCase() : 'U' }}
+                  </div>
+                  <div class="min-w-0">
+                    <p class="text-xs font-bold text-gray-900 dark:text-white truncate">{{ user.name }}</p>
+                    <p class="text-[10px] text-gray-500 truncate">{{ user.email }} &bull; {{ user.company || user.role }}</p>
+                  </div>
+                </div>
+                <UIcon name="i-lucide-message-square-plus" class="size-4 text-red-600 shrink-0" />
+              </button>
+            </div>
+          </div>
           <div
             v-if="filteredConversations.length === 0"
             class="p-8 text-center text-gray-400 text-xs"

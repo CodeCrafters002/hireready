@@ -7,9 +7,19 @@ const store = useDataStore()
 const { currentUser, hydrate } = useAuth()
 const route = useRoute()
 
+let pollInterval: ReturnType<typeof setInterval> | null = null
+
 onMounted(() => {
   hydrate()
+  store.syncChatWithDatabase()
   scrollToBottom(true)
+  pollInterval = setInterval(() => {
+    store.syncChatWithDatabase()
+  }, 2500)
+})
+
+onUnmounted(() => {
+  if (pollInterval) clearInterval(pollInterval)
 })
 
 // ── Active Candidate ID (Hydration-safe) ───────────────────────────────────────
@@ -52,10 +62,50 @@ const conversations = computed(() => {
   return all.filter(c =>
     (c.companyName && c.companyName.toLowerCase().includes(q)) ||
     (c.employerName && c.employerName.toLowerCase().includes(q)) ||
+    (c.candidateName && c.candidateName.toLowerCase().includes(q)) ||
+    (c.candidateEmail && c.candidateEmail.toLowerCase().includes(q)) ||
     (c.jobTitle && c.jobTitle.toLowerCase().includes(q)) ||
     (c.lastMessageText && c.lastMessageText.toLowerCase().includes(q))
   )
 })
+
+const matchingDirectoryUsers = computed(() => {
+  if (!searchQuery.value.trim()) return []
+  const q = searchQuery.value.toLowerCase().trim()
+  const allUsers = store.getUsers()
+  return allUsers.filter(u => {
+    if (u.id === activeCandidateId.value || (currentUser.value?.email && u.email?.toLowerCase() === currentUser.value.email.toLowerCase())) return false
+    if (u.role === 'candidate') return false
+    return (
+      (u.name && u.name.toLowerCase().includes(q)) ||
+      (u.email && u.email.toLowerCase().includes(q)) ||
+      (u.company && u.company.toLowerCase().includes(q)) ||
+      (u.role && u.role.toLowerCase().includes(q))
+    )
+  }).slice(0, 5)
+})
+
+function startDirectChatWithUser(user: any) {
+  const isEmp = user.role === 'employer'
+  const conv = store.getOrCreateConversation({
+    jobTitle: isEmp ? (user.company ? `Inquiry with ${user.company}` : 'Recruiter Discussion') : 'Direct Advisory Hotline',
+    companyName: isEmp ? (user.company || user.name) : 'HireReady Official Support',
+    candidateId: activeCandidateId.value,
+    candidateName: currentUser.value?.name || 'Candidate',
+    candidateEmail: currentUser.value?.email,
+    employerId: isEmp ? user.id : 'admin-support',
+    employerName: user.name,
+    employerCompany: isEmp ? (user.company || user.name) : 'HireReady Platform Team',
+    initialMessage: `Hello ${user.name}! I would like to connect with your team.`,
+    initialSenderRole: 'candidate',
+    requestStatus: 'accepted',
+    isSupportChat: !isEmp
+  })
+  selectedConvId.value = conv.id
+  searchQuery.value = ''
+  mobileShowChat.value = true
+  scrollToBottom()
+}
 
 // Auto-select query param or first conversation
 watch([conversations, () => route.query.conversationId], ([list, queryId]) => {
@@ -154,46 +204,6 @@ function handleSendMessage(presetText?: string) {
 
   newMessageText.value = ''
   scrollToBottom()
-
-  // Real-time simulated reply based on sender role
-  const isSupport = activeConversation.value.isSupportChat || activeConversation.value.employerId === 'admin-support'
-  setTimeout(() => {
-    const currentConv = store.getConversationById(convId)
-    if (!currentConv) return
-
-    let replyText = 'Thanks for your message! Our talent acquisition team has received your note and will get back to you shortly.'
-    const lower = text.toLowerCase()
-
-    if (isSupport) {
-      if (lower.includes('help') || lower.includes('issue') || lower.includes('problem')) {
-        replyText = 'HireReady Support here: We are looking into this for you. Your ticket #HR-' + Math.floor(1000 + Math.random() * 9000) + ' has been prioritized.'
-      } else if (lower.includes('assessment') || lower.includes('mcq') || lower.includes('test')) {
-        replyText = 'Our assessment system uses adaptive questions. You can retake practice questions from your Assessments tab at any time.'
-      } else {
-        replyText = 'HireReady Platform Team: Thank you for reaching out! A placement officer has been assigned to assist you.'
-      }
-    } else {
-      if (lower.includes('available') || lower.includes('tomorrow') || lower.includes('slot') || lower.includes('call') || lower.includes('yes') || lower.includes('ok')) {
-        replyText = 'Great! Our recruiter has reserved that screening slot for you. A calendar invite has been linked to your interviews dashboard.'
-      } else if (lower.includes('portfolio') || lower.includes('github') || lower.includes('resume') || lower.includes('cv')) {
-        replyText = 'Received your updated profile details! Our technical team will review your work samples.'
-      } else if (lower.includes('notice') || lower.includes('join') || lower.includes('immediate')) {
-        replyText = 'Noted! Immediate availability is a huge plus for this role. We are expediting your profile with the hiring manager.'
-      } else if (lower.includes('round') || lower.includes('format') || lower.includes('technical') || lower.includes('question')) {
-        replyText = 'The technical round will focus on practical scenario problem-solving. You can practice related questions on your Assessments page.'
-      }
-    }
-
-    store.sendMessage({
-      conversationId: convId,
-      senderId: currentConv.employerId,
-      senderName: isSupport ? 'HireReady Support Team' : (currentConv.employerName || currentConv.companyName || 'Hiring Lead'),
-      senderRole: isSupport ? 'admin' : 'employer',
-      text: replyText
-    })
-
-    scrollToBottom()
-  }, 1600)
 }
 
 function formatMessageTime(isoString: string): string {
@@ -295,6 +305,32 @@ const quickReplies = [
 
         <!-- Conversations List (Scrolls independently) -->
         <div class="flex-1 min-h-0 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800/60">
+          <!-- Start New Chat Search Results -->
+          <div v-if="searchQuery.trim() && matchingDirectoryUsers.length > 0" class="p-2.5 bg-indigo-50/50 dark:bg-indigo-950/30 border-b border-indigo-100 dark:border-indigo-900/50">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 px-1.5 mb-1.5">
+              Available Contacts ({{ matchingDirectoryUsers.length }})
+            </p>
+            <div class="space-y-1">
+              <button
+                v-for="user in matchingDirectoryUsers"
+                :key="user.id"
+                type="button"
+                class="w-full text-left p-2 rounded-xl transition flex items-center justify-between gap-2 bg-white dark:bg-gray-800/90 shadow-2xs hover:ring-1 hover:ring-indigo-500"
+                @click="startDirectChatWithUser(user)"
+              >
+                <div class="flex items-center gap-2 min-w-0">
+                  <div class="size-7 rounded-full bg-indigo-600 text-white font-bold text-xs grid place-items-center shrink-0">
+                    {{ user.name ? user.name.charAt(0).toUpperCase() : 'U' }}
+                  </div>
+                  <div class="min-w-0">
+                    <p class="text-xs font-bold text-gray-900 dark:text-white truncate">{{ user.name }}</p>
+                    <p class="text-[10px] text-gray-500 truncate">{{ user.company || (user.role === 'admin' ? 'HireReady Admin' : user.role) }}</p>
+                  </div>
+                </div>
+                <UIcon name="i-lucide-message-square-plus" class="size-4 text-indigo-600 shrink-0" />
+              </button>
+            </div>
+          </div>
           <div
             v-if="conversations.length === 0"
             class="p-8 text-center text-gray-400 text-xs"

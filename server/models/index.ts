@@ -144,6 +144,46 @@ const GigApplicationSchema = new Schema({
   completedAt: { type: String, default: null }
 })
 
+// ─── 8. Conversation Schema ──────────────────────────────────────────────────
+const ConversationSchema = new Schema({
+  id: { type: String, required: true, unique: true, index: true },
+  jobId: { type: String, default: null },
+  jobTitle: { type: String, default: '' },
+  companyName: { type: String, default: '' },
+  candidateId: { type: String, required: true, index: true },
+  candidateName: { type: String, default: '' },
+  candidateEmail: { type: String, default: '' },
+  candidateAvatar: { type: String, default: '' },
+  employerId: { type: String, required: true, index: true },
+  employerName: { type: String, default: '' },
+  employerCompany: { type: String, default: '' },
+  employerAvatar: { type: String, default: '' },
+  lastMessageText: { type: String, default: '' },
+  lastMessageAt: { type: String, default: () => new Date().toISOString() },
+  unreadCandidateCount: { type: Number, default: 0 },
+  unreadEmployerCount: { type: Number, default: 0 },
+  unreadAdminCount: { type: Number, default: 0 },
+  createdAt: { type: String, default: () => new Date().toISOString() },
+  updatedAt: { type: String, default: () => new Date().toISOString() },
+  requestStatus: { type: String, enum: ['pending', 'accepted', 'declined'], default: 'accepted' },
+  initiatedByRole: { type: String, default: 'employer' },
+  isSupportChat: { type: Boolean, default: false }
+}, { strict: false })
+
+// ─── 9. Chat Message Schema ──────────────────────────────────────────────────
+const ChatMessageSchema = new Schema({
+  id: { type: String, required: true, unique: true, index: true },
+  conversationId: { type: String, required: true, index: true },
+  senderId: { type: String, required: true },
+  senderName: { type: String, required: true },
+  senderRole: { type: String, enum: ['candidate', 'employer', 'admin'], required: true },
+  text: { type: String, required: true },
+  createdAt: { type: String, default: () => new Date().toISOString() },
+  read: { type: Boolean, default: false },
+  quickAction: { type: Schema.Types.Mixed, default: null },
+  isSystemNotice: { type: Boolean, default: false }
+}, { strict: false })
+
 // Mongoose model caching for serverless environments
 export const UserModel = mongoose.models.User || mongoose.model('User', UserSchema)
 export const CandidateProfileModel = mongoose.models.CandidateProfile || mongoose.model('CandidateProfile', CandidateProfileSchema)
@@ -152,4 +192,6 @@ export const ApplicationModel = mongoose.models.Application || mongoose.model('A
 export const AssessmentQuestionModel = mongoose.models.AssessmentQuestion || mongoose.model('AssessmentQuestion', AssessmentQuestionSchema)
 export const GigModel = mongoose.models.Gig || mongoose.model('Gig', GigSchema)
 export const GigApplicationModel = mongoose.models.GigApplication || mongoose.model('GigApplication', GigApplicationSchema)
+export const ConversationModel = mongoose.models.Conversation || mongoose.model('Conversation', ConversationSchema)
+export const ChatMessageModel = mongoose.models.ChatMessage || mongoose.model('ChatMessage', ChatMessageSchema)
 

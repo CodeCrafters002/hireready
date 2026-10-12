@@ -7,9 +7,19 @@ const store = useDataStore()
 const { currentUser, hydrate } = useAuth()
 const route = useRoute()
 
+let pollInterval: ReturnType<typeof setInterval> | null = null
+
 onMounted(() => {
   hydrate()
+  store.syncChatWithDatabase()
   scrollToBottom(true)
+  pollInterval = setInterval(() => {
+    store.syncChatWithDatabase()
+  }, 2500)
+})
+
+onUnmounted(() => {
+  if (pollInterval) clearInterval(pollInterval)
 })
 
 // ── Active Employer ID (Hydration-safe) ────────────────────────────────────────
@@ -51,10 +61,49 @@ const conversations = computed(() => {
   return all.filter(c =>
     (c.candidateName && c.candidateName.toLowerCase().includes(q)) ||
     (c.candidateEmail && c.candidateEmail.toLowerCase().includes(q)) ||
+    (c.companyName && c.companyName.toLowerCase().includes(q)) ||
+    (c.employerName && c.employerName.toLowerCase().includes(q)) ||
     (c.jobTitle && c.jobTitle.toLowerCase().includes(q)) ||
     (c.lastMessageText && c.lastMessageText.toLowerCase().includes(q))
   )
 })
+
+const matchingDirectoryCandidates = computed(() => {
+  if (!searchQuery.value.trim()) return []
+  const q = searchQuery.value.toLowerCase().trim()
+  const allUsers = store.getUsers()
+  return allUsers.filter(u => {
+    if (u.role !== 'candidate') return false
+    return (
+      (u.name && u.name.toLowerCase().includes(q)) ||
+      (u.email && u.email.toLowerCase().includes(q)) ||
+      (u.title && u.title.toLowerCase().includes(q))
+    )
+  }).slice(0, 5)
+})
+
+function startDirectChatWithCandidate(user: any) {
+  const company = (currentUser.value as any)?.company || currentUser.value?.name || 'Hiring Partner'
+  const conv = store.getOrCreateConversation({
+    jobTitle: 'Direct Talent Recruitment Discussion',
+    companyName: company,
+    candidateId: user.id,
+    candidateName: user.name,
+    candidateEmail: user.email,
+    employerId: activeEmployerId.value,
+    employerName: currentUser.value?.name || 'Hiring Lead',
+    employerCompany: company,
+    initialMessage: `Hello ${user.name}! We came across your profile and would like to discuss potential career opportunities with our team.`,
+    initialSenderRole: 'employer',
+    requestStatus: 'accepted',
+    isSupportChat: false
+  })
+
+  selectedConvId.value = conv.id
+  searchQuery.value = ''
+  mobileShowChat.value = true
+  scrollToBottom()
+}
 
 watch([conversations, () => route.query.conversationId], ([list, queryId]) => {
   if (queryId && typeof queryId === 'string' && list.some(c => c.id === queryId)) {
@@ -132,36 +181,6 @@ function handleSendMessage(presetText?: string, quickAction?: ChatMessage['quick
 
   newMessageText.value = ''
   scrollToBottom()
-
-  // In-app notification for candidate
-  store.addNotification({
-    userId: activeConversation.value.candidateId,
-    type: 'general',
-    title: `💬 New message from ${activeConversation.value.companyName || 'Recruiter'}`,
-    message: text.slice(0, 120)
-  })
-
-  // Simulated candidate reply
-  setTimeout(() => {
-    const currentConv = store.getConversationById(convId)
-    if (!currentConv) return
-
-    let reply = 'Thank you for reaching out! I will review this right away.'
-    if (quickAction?.type === 'interview_invite') {
-      reply = 'Thank you so much! I am available and looking forward to the screening discussion.'
-    } else if (quickAction?.type === 'request_portfolio') {
-      reply = 'I have updated my portfolio link and shared my latest projects.'
-    }
-
-    store.sendMessage({
-      conversationId: convId,
-      senderId: currentConv.candidateId,
-      senderName: currentConv.candidateName || 'Candidate',
-      senderRole: 'candidate',
-      text: reply
-    })
-    scrollToBottom()
-  }, 1800)
 }
 
 function formatMessageTime(isoString: string): string {
@@ -272,6 +291,32 @@ const recruiterTemplates = [
 
         <!-- Conversations List (Scrolls independently) -->
         <div class="flex-1 min-h-0 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800/60">
+          <!-- Start New Chat Search Results -->
+          <div v-if="searchQuery.trim() && matchingDirectoryCandidates.length > 0" class="p-2.5 bg-emerald-50/50 dark:bg-emerald-950/30 border-b border-emerald-100 dark:border-emerald-900/50">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 px-1.5 mb-1.5">
+              Matching Candidates ({{ matchingDirectoryCandidates.length }})
+            </p>
+            <div class="space-y-1">
+              <button
+                v-for="user in matchingDirectoryCandidates"
+                :key="user.id"
+                type="button"
+                class="w-full text-left p-2 rounded-xl transition flex items-center justify-between gap-2 bg-white dark:bg-gray-800/90 shadow-2xs hover:ring-1 hover:ring-emerald-500"
+                @click="startDirectChatWithCandidate(user)"
+              >
+                <div class="flex items-center gap-2 min-w-0">
+                  <div class="size-7 rounded-full bg-emerald-600 text-white font-bold text-xs grid place-items-center shrink-0">
+                    {{ user.name ? user.name.charAt(0).toUpperCase() : 'C' }}
+                  </div>
+                  <div class="min-w-0">
+                    <p class="text-xs font-bold text-gray-900 dark:text-white truncate">{{ user.name }}</p>
+                    <p class="text-[10px] text-gray-500 truncate">{{ user.email }}</p>
+                  </div>
+                </div>
+                <UIcon name="i-lucide-message-square-plus" class="size-4 text-emerald-600 shrink-0" />
+              </button>
+            </div>
+          </div>
           <div
             v-if="conversations.length === 0"
             class="p-8 text-center text-gray-400 text-xs"
