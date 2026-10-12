@@ -9,6 +9,7 @@ import type {
   AppNotification,
   Gig
 } from '~/types/portal'
+import { staticJobs } from '~/data/jobs'
 
 const SEED_FLAG = 'hr_seeded'
 
@@ -19,6 +20,7 @@ export function seedDemoData() {
   // ── Initial data (catalog only, no fake demo user accounts) ────────────
   const users: User[] = []
   const profiles: CandidateProfile[] = []
+  const jobs: Job[] = staticJobs
   const applications: Application[] = []
   const payments: Payment[] = []
 
