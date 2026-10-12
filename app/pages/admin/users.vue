@@ -354,6 +354,28 @@ function roleLabel(role: UserRole) {
 function avatarColor(role: UserRole) {
   return { admin: 'bg-red-600', officer: 'bg-purple-600', candidate: 'bg-blue-600', employer: 'bg-emerald-600' }[role] || 'bg-gray-500'
 }
+
+function openDirectMessage(user: User) {
+  const isCandidate = user.role === 'candidate'
+  const isEmployer = user.role === 'employer'
+
+  const conv = store.getOrCreateConversation({
+    jobTitle: isCandidate ? 'Direct Candidate Advisory Hotline' : 'Direct Employer Partnership Hotline',
+    companyName: isEmployer ? (user.company || user.name) : 'HireReady Official Support',
+    candidateId: isCandidate ? user.id : 'demo-candidate',
+    candidateName: isCandidate ? user.name : 'Talent Inquiries',
+    candidateEmail: isCandidate ? user.email : 'support@hireready.app',
+    employerId: isEmployer ? user.id : 'admin-support',
+    employerName: isEmployer ? user.name : 'HireReady Support (Admin)',
+    employerCompany: isEmployer ? (user.company || user.name) : 'HireReady Platform Team',
+    initialMessage: `Hello ${user.name}! This is HireReady Platform Administration. How can we assist you with your portal activities today?`,
+    initialSenderRole: 'admin',
+    requestStatus: 'accepted',
+    isSupportChat: true
+  })
+
+  navigateTo(`/admin/messages?conversationId=${conv.id}`)
+}
 </script>
 
 <template>
@@ -516,6 +538,18 @@ function avatarColor(role: UserRole) {
 
                   <!-- Normal action buttons -->
                   <div v-else class="flex items-center justify-end gap-1.5">
+                    <!-- Direct Message User -->
+                    <button
+                      v-if="user.id !== currentUser?.id"
+                      type="button"
+                      class="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 hover:border-indigo-300 dark:border-indigo-900/60 dark:bg-indigo-950/50 dark:text-indigo-300 dark:hover:bg-indigo-900/60 transition-colors shadow-2xs"
+                      title="Send direct message / official notice to this user"
+                      @click="openDirectMessage(user)"
+                    >
+                      <UIcon name="i-lucide-message-square" class="size-3 text-indigo-600 dark:text-indigo-400" />
+                      <span>Message</span>
+                    </button>
+
                     <!-- Edit Details -->
                     <button
                       v-if="canEditUser(user)"

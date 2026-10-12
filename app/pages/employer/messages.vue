@@ -9,6 +9,7 @@ const route = useRoute()
 
 onMounted(() => {
   hydrate()
+  scrollToBottom(true)
 })
 
 // ── Active Employer ID (Hydration-safe) ────────────────────────────────────────
@@ -31,6 +32,7 @@ const searchQuery = ref('')
 const selectedConvId = ref<string>((route.query.conversationId as string) || '')
 const newMessageText = ref('')
 const chatContainerRef = ref<HTMLElement | null>(null)
+const mobileShowChat = ref(false)
 
 const conversations = computed(() => {
   void store.chatVersion.value
@@ -57,6 +59,7 @@ const conversations = computed(() => {
 watch([conversations, () => route.query.conversationId], ([list, queryId]) => {
   if (queryId && typeof queryId === 'string' && list.some(c => c.id === queryId)) {
     selectedConvId.value = queryId
+    mobileShowChat.value = true
   } else if (!selectedConvId.value && list.length > 0) {
     selectedConvId.value = list[0]?.id || ''
   } else if (selectedConvId.value && !list.some(c => c.id === selectedConvId.value) && list.length > 0) {
@@ -83,15 +86,30 @@ const candidateProfile = computed(() => {
 watch(selectedConvId, (newId) => {
   if (newId) {
     store.markConversationRead(newId, 'employer')
-    scrollToBottom()
+    scrollToBottom(false)
   }
 }, { immediate: true })
 
-function scrollToBottom() {
+watch(messages, () => {
+  scrollToBottom(false)
+})
+
+function selectConversation(id: string) {
+  selectedConvId.value = id
+  mobileShowChat.value = true
+  scrollToBottom(false)
+}
+
+function scrollToBottom(instant = false) {
   nextTick(() => {
-    if (chatContainerRef.value) {
-      chatContainerRef.value.scrollTop = chatContainerRef.value.scrollHeight
-    }
+    setTimeout(() => {
+      if (chatContainerRef.value) {
+        chatContainerRef.value.scrollTo({
+          top: chatContainerRef.value.scrollHeight,
+          behavior: instant ? 'auto' : 'smooth'
+        })
+      }
+    }, 40)
   })
 }
 
@@ -128,7 +146,7 @@ function handleSendMessage(presetText?: string, quickAction?: ChatMessage['quick
     const currentConv = store.getConversationById(convId)
     if (!currentConv) return
 
-    let reply = 'Thank you for the update! I will review this right away.'
+    let reply = 'Thank you for reaching out! I will review this right away.'
     if (quickAction?.type === 'interview_invite') {
       reply = 'Thank you so much! I am available and looking forward to the screening discussion.'
     } else if (quickAction?.type === 'request_portfolio') {
@@ -143,7 +161,7 @@ function handleSendMessage(presetText?: string, quickAction?: ChatMessage['quick
       text: reply
     })
     scrollToBottom()
-  }, 2000)
+  }, 1800)
 }
 
 function formatMessageTime(isoString: string): string {
@@ -197,16 +215,17 @@ const recruiterTemplates = [
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-4">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
       <div>
         <div class="flex items-center gap-2">
-          <h1 class="text-2xl font-black text-gray-950 dark:text-white">Candidate Messaging Console</h1>
+          <h1 class="text-xl sm:text-2xl font-black text-gray-950 dark:text-white">Candidate Messaging Console</h1>
           <UBadge color="success" variant="subtle" size="xs" label="Direct Recruiter Line" />
+          <UBadge color="primary" variant="subtle" size="xs" label="Privacy Protected 🛡️" />
         </div>
-        <p class="mt-1 text-sm text-gray-500">
-          Reach out, screen talent, and schedule interviews with applicants in real time.
+        <p class="mt-0.5 text-xs sm:text-sm text-gray-500">
+          Reach out, screen talent, and schedule interviews with applicants with built-in candidate privacy controls.
         </p>
       </div>
 
@@ -230,13 +249,16 @@ const recruiterTemplates = [
       </div>
     </div>
 
-    <!-- Main Chat Container (2 Columns) -->
-    <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xs dark:border-gray-800 dark:bg-gray-900 grid grid-cols-1 md:grid-cols-12 min-h-[640px] max-h-[80vh]">
+    <!-- Main Chat Container (Fixed Height with Independent Scroll Areas) -->
+    <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xs dark:border-gray-800 dark:bg-gray-900 grid grid-cols-1 md:grid-cols-12 h-[calc(100dvh-10.5rem)] min-h-[500px] max-h-[860px]">
       
       <!-- ── Left Sidebar: Candidates List ──────────────────────────────── -->
-      <div class="md:col-span-4 lg:col-span-4 border-r border-gray-200 dark:border-gray-800 flex flex-col bg-gray-50/50 dark:bg-gray-900/50">
+      <div
+        class="md:col-span-4 lg:col-span-4 border-r border-gray-200 dark:border-gray-800 flex flex-col h-full min-h-0 bg-gray-50/50 dark:bg-gray-900/50"
+        :class="mobileShowChat ? 'hidden md:flex' : 'flex'"
+      >
         <!-- Search Bar -->
-        <div class="p-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+        <div class="p-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shrink-0">
           <div class="relative">
             <UIcon name="i-lucide-search" class="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
             <input
@@ -248,8 +270,8 @@ const recruiterTemplates = [
           </div>
         </div>
 
-        <!-- Conversations List -->
-        <div class="flex-1 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800/60">
+        <!-- Conversations List (Scrolls independently) -->
+        <div class="flex-1 min-h-0 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800/60">
           <div
             v-if="conversations.length === 0"
             class="p-8 text-center text-gray-400 text-xs"
@@ -264,8 +286,8 @@ const recruiterTemplates = [
             :key="conv.id"
             type="button"
             class="w-full text-left p-3.5 transition-all flex items-start gap-3 hover:bg-white dark:hover:bg-gray-800/60 relative"
-            :class="selectedConvId === conv.id ? 'bg-emerald-50/70 dark:bg-emerald-950/40 border-l-4 border-emerald-600' : 'bg-transparent'"
-            @click="selectedConvId = conv.id"
+            :class="selectedConvId === conv.id ? 'bg-emerald-50/80 dark:bg-emerald-950/50 border-l-4 border-emerald-600' : 'bg-transparent'"
+            @click="selectConversation(conv.id)"
           >
             <!-- Candidate Avatar -->
             <div class="relative size-10 shrink-0 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-700 text-white font-bold text-xs grid place-items-center shadow-2xs">
@@ -281,9 +303,27 @@ const recruiterTemplates = [
             <!-- Thread Details -->
             <div class="min-w-0 flex-1">
               <div class="flex items-center justify-between gap-1 mb-0.5">
-                <h4 class="font-bold text-xs text-gray-950 dark:text-white truncate">
-                  {{ conv.candidateName }}
-                </h4>
+                <div class="flex items-center gap-1.5 min-w-0">
+                  <h4 class="font-bold text-xs text-gray-950 dark:text-white truncate">
+                    {{ conv.candidateName }}
+                  </h4>
+                  <UBadge
+                    v-if="conv.requestStatus === 'pending'"
+                    color="warning"
+                    variant="subtle"
+                    size="xs"
+                    label="Pending Accept"
+                    class="shrink-0 text-[9px] py-0 px-1"
+                  />
+                  <UBadge
+                    v-else-if="conv.requestStatus === 'accepted'"
+                    color="success"
+                    variant="subtle"
+                    size="xs"
+                    label="Accepted"
+                    class="shrink-0 text-[9px] py-0 px-1"
+                  />
+                </div>
                 <span class="text-[10px] text-gray-400 shrink-0 font-medium">
                   {{ formatListTime(conv.lastMessageAt) }}
                 </span>
@@ -302,10 +342,23 @@ const recruiterTemplates = [
       </div>
 
       <!-- ── Right Column: Active Chat Thread ──────────────────────────────── -->
-      <div v-if="activeConversation" class="md:col-span-8 lg:col-span-8 flex flex-col h-full bg-white dark:bg-gray-900">
-        <!-- Thread Top Header -->
-        <div class="p-3.5 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-white dark:bg-gray-900">
+      <div
+        v-if="activeConversation"
+        class="md:col-span-8 lg:col-span-8 flex flex-col h-full min-h-0 bg-white dark:bg-gray-900"
+        :class="!mobileShowChat ? 'hidden md:flex' : 'flex'"
+      >
+        <!-- Thread Top Header (Fixed at top) -->
+        <div class="p-3.5 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-white dark:bg-gray-900 shrink-0">
           <div class="flex items-center gap-3 min-w-0">
+            <!-- Mobile Back Button -->
+            <button
+              type="button"
+              class="md:hidden grid size-8 place-items-center rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 shrink-0"
+              @click="mobileShowChat = false"
+            >
+              <UIcon name="i-lucide-arrow-left" class="size-5" />
+            </button>
+
             <div class="grid size-10 place-items-center rounded-full bg-gradient-to-tr from-emerald-600 to-teal-700 text-white font-bold text-xs shrink-0 shadow-xs">
               {{ activeConversation.candidateName ? activeConversation.candidateName.charAt(0).toUpperCase() : 'C' }}
             </div>
@@ -322,7 +375,11 @@ const recruiterTemplates = [
                 </span>
               </div>
               <p class="text-xs text-gray-500 truncate">
-                <span>{{ activeConversation.candidateEmail }}</span>
+                <!-- If pending, mask candidate contact info for privacy protection -->
+                <span v-if="activeConversation.requestStatus === 'pending'" class="text-amber-700 dark:text-amber-300 font-medium">
+                  🔒 Contact masked until request accepted
+                </span>
+                <span v-else>{{ activeConversation.candidateEmail }}</span>
                 <span v-if="candidateProfile?.city"> · {{ candidateProfile.city }}</span>
                 <span v-if="activeConversation.jobTitle"> · Role: <strong>{{ activeConversation.jobTitle }}</strong></span>
               </p>
@@ -336,75 +393,120 @@ const recruiterTemplates = [
               color="primary"
               variant="solid"
               icon="i-lucide-calendar-plus"
-              label="Schedule Interview"
+              label="Schedule Call"
             />
           </div>
         </div>
 
-        <!-- Chat Messages Area -->
+        <!-- ── PRIVACY NOTICE BANNER ──────────────────────────────────────── -->
+        <div
+          v-if="activeConversation.requestStatus === 'pending'"
+          class="p-2.5 bg-amber-50 border-b border-amber-200/80 dark:bg-amber-950/40 dark:border-amber-800/40 flex items-center justify-between text-xs text-amber-900 dark:text-amber-200 shrink-0"
+        >
+          <div class="flex items-center gap-2 min-w-0">
+            <UIcon name="i-lucide-shield-check" class="size-4 text-amber-600 shrink-0" />
+            <span class="truncate">
+              <strong>Privacy Shield Active:</strong> Message request sent to candidate. Direct phone and resume contacts unlock upon candidate acceptance.
+            </span>
+          </div>
+          <UBadge color="warning" variant="subtle" size="xs" label="Awaiting Candidate" class="shrink-0" />
+        </div>
+
+        <div
+          v-else-if="activeConversation.requestStatus === 'accepted'"
+          class="p-2 bg-emerald-50/70 border-b border-emerald-200/60 dark:bg-emerald-950/30 dark:border-emerald-800/40 flex items-center justify-between text-[11px] text-emerald-800 dark:text-emerald-300 shrink-0"
+        >
+          <div class="flex items-center gap-2">
+            <UIcon name="i-lucide-check-circle" class="size-3.5 text-emerald-600 shrink-0" />
+            <span><strong>Verified Mutual Connection:</strong> Candidate accepted your message request. Direct contact and screening unlocked.</span>
+          </div>
+          <UBadge color="success" variant="subtle" size="xs" label="Verified Active" class="shrink-0" />
+        </div>
+
+        <!-- Chat Messages Area (Main Scroll Container) -->
         <div
           ref="chatContainerRef"
-          class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/40 dark:bg-gray-950/20"
+          class="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 bg-gray-50/40 dark:bg-gray-950/20 scroll-smooth"
         >
           <!-- Notice Header -->
-          <div class="text-center my-2">
-            <span class="inline-block rounded-full bg-gray-100 dark:bg-gray-800 px-3 py-1 text-[11px] text-gray-500 font-medium">
-              🔒 Direct Hiring Channel with Candidate · HireReady Verified
+          <div class="text-center my-1">
+            <span class="inline-flex items-center gap-1.5 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-3 py-1 text-[11px] text-gray-500 font-medium shadow-2xs">
+              <UIcon name="i-lucide-lock" class="size-3 text-emerald-600" />
+              <span>Direct Hiring Channel · HireReady Platform Verified</span>
             </span>
           </div>
 
           <!-- Message Bubbles -->
-          <div
-            v-for="msg in messages"
-            :key="msg.id"
-            class="flex flex-col"
-            :class="msg.senderRole === 'employer' ? 'items-end' : 'items-start'"
-          >
-            <div class="flex items-end gap-2 max-w-[85%] sm:max-w-[75%]">
-              <!-- Candidate Avatar -->
-              <div
-                v-if="msg.senderRole === 'candidate'"
-                class="grid size-7 place-items-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 text-[10px] font-bold shrink-0"
-              >
-                {{ activeConversation.candidateName.charAt(0) }}
-              </div>
+          <template v-for="msg in messages" :key="msg.id">
+            <!-- System Notice message -->
+            <div v-if="msg.isSystemNotice" class="text-center my-2">
+              <span class="inline-block rounded-full bg-emerald-50 border border-emerald-200/80 px-3.5 py-1 text-[11px] font-semibold text-emerald-800 dark:bg-emerald-950/60 dark:border-emerald-800 dark:text-emerald-300 shadow-2xs">
+                {{ msg.text }}
+              </span>
+            </div>
 
-              <!-- Bubble Box -->
-              <div
-                class="rounded-2xl p-3 shadow-2xs"
-                :class="msg.senderRole === 'employer'
-                  ? 'bg-emerald-600 text-white rounded-br-xs'
-                  : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-bl-xs'"
-              >
-                <!-- Sender label if candidate -->
-                <p v-if="msg.senderRole === 'candidate'" class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mb-1">
-                  {{ msg.senderName }}
-                </p>
-
-                <p class="text-xs leading-relaxed whitespace-pre-wrap">{{ msg.text }}</p>
-
-                <!-- Attached Action if sent -->
-                <div v-if="msg.quickAction" class="mt-2.5 pt-2 border-t border-white/20">
-                  <span class="inline-flex items-center gap-1.5 rounded-lg bg-white/20 px-2.5 py-1 text-[11px] font-bold text-white">
-                    <UIcon name="i-lucide-check-circle" class="size-3.5" />
-                    {{ msg.quickAction.title }}
-                  </span>
+            <!-- Standard Chat Bubble -->
+            <div
+              v-else
+              class="flex flex-col"
+              :class="msg.senderRole === 'employer' ? 'items-end' : 'items-start'"
+            >
+              <div class="flex items-end gap-2 max-w-[85%] sm:max-w-[75%]">
+                <!-- Candidate Avatar -->
+                <div
+                  v-if="msg.senderRole === 'candidate'"
+                  class="grid size-7 place-items-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 text-[10px] font-bold shrink-0"
+                >
+                  {{ activeConversation.candidateName.charAt(0) }}
                 </div>
 
+                <!-- Admin Avatar if admin notice -->
                 <div
-                  class="mt-1 text-[10px] text-right font-medium"
-                  :class="msg.senderRole === 'employer' ? 'text-emerald-200' : 'text-gray-400'"
+                  v-else-if="msg.senderRole === 'admin'"
+                  class="grid size-7 place-items-center rounded-full bg-red-600 text-white text-[10px] font-bold shrink-0"
                 >
-                  {{ formatMessageTime(msg.createdAt) }}
-                  <span v-if="msg.senderRole === 'employer'"> · ✓✓</span>
+                  <UIcon name="i-lucide-shield-check" class="size-3.5" />
+                </div>
+
+                <!-- Bubble Box -->
+                <div
+                  class="rounded-2xl p-3 shadow-2xs"
+                  :class="msg.senderRole === 'employer'
+                    ? 'bg-emerald-600 text-white rounded-br-xs'
+                    : msg.senderRole === 'admin'
+                      ? 'bg-red-50 text-gray-900 border border-red-200 dark:bg-red-950/40 dark:text-white dark:border-red-900/60 rounded-bl-xs'
+                      : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-bl-xs'"
+                >
+                  <!-- Sender label if candidate or admin -->
+                  <p v-if="msg.senderRole !== 'employer'" class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mb-1">
+                    {{ msg.senderName }}
+                  </p>
+
+                  <p class="text-xs leading-relaxed whitespace-pre-wrap">{{ msg.text }}</p>
+
+                  <!-- Attached Action if sent -->
+                  <div v-if="msg.quickAction" class="mt-2.5 pt-2 border-t border-white/20">
+                    <span class="inline-flex items-center gap-1.5 rounded-lg bg-white/20 px-2.5 py-1 text-[11px] font-bold text-white">
+                      <UIcon name="i-lucide-check-circle" class="size-3.5" />
+                      {{ msg.quickAction.title }}
+                    </span>
+                  </div>
+
+                  <div
+                    class="mt-1 text-[10px] text-right font-medium"
+                    :class="msg.senderRole === 'employer' ? 'text-emerald-200' : 'text-gray-400'"
+                  >
+                    {{ formatMessageTime(msg.createdAt) }}
+                    <span v-if="msg.senderRole === 'employer'"> · ✓✓</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          </template>
         </div>
 
-        <!-- Recruiter Template Quick Buttons -->
-        <div class="px-4 py-2 border-t border-gray-100 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-800/40 flex items-center gap-1.5 overflow-x-auto text-nowrap">
+        <!-- Recruiter Template Quick Buttons (Fixed above input) -->
+        <div class="px-4 py-2 border-t border-gray-100 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-800/40 flex items-center gap-1.5 overflow-x-auto text-nowrap shrink-0">
           <span class="text-[10px] font-bold text-gray-400 uppercase shrink-0">Recruiter Quick-Send:</span>
           <button
             v-for="tmpl in recruiterTemplates"
@@ -417,8 +519,8 @@ const recruiterTemplates = [
           </button>
         </div>
 
-        <!-- Message Input Bar -->
-        <div class="p-3.5 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex items-center gap-2">
+        <!-- Message Input Bar (Fixed at bottom) -->
+        <div class="p-3.5 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex items-center gap-2 shrink-0">
           <input
             v-model="newMessageText"
             type="text"

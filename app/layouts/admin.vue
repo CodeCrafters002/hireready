@@ -1,10 +1,17 @@
 <script setup lang="ts">
 const { currentUser, signOut } = useAuth()
 const route = useRoute()
+const store = useDataStore()
 const sidebarOpen = ref(false)
+
+const unreadMessagesCount = computed(() => {
+  const userId = currentUser.value?.id || 'admin'
+  return store.getUnreadMessagesCount(userId, 'admin')
+})
 
 const navItems = [
   { label: 'Dashboard', icon: 'i-lucide-layout-dashboard', to: '/admin' },
+  { label: 'User Messages 💬', icon: 'i-lucide-message-square', to: '/admin/messages' },
   { label: 'My Admin Profile', icon: 'i-lucide-user-cog', to: '/admin/profile' },
   { label: 'Users & Roles', icon: 'i-lucide-shield-check', to: '/admin/users' },
   { label: 'Manage Jobs', icon: 'i-lucide-briefcase', to: '/admin/jobs' },
@@ -80,6 +87,7 @@ function isActiveRoute(path: string) {
           >
             <UIcon :name="item.icon" class="size-5 shrink-0" />
             <span>{{ item.label }}</span>
+            <UBadge v-if="item.to === '/admin/messages' && unreadMessagesCount > 0" :label="String(unreadMessagesCount)" color="error" variant="solid" size="xs" class="ml-auto" />
           </NuxtLink>
         </nav>
 
@@ -101,6 +109,10 @@ function isActiveRoute(path: string) {
           </div>
 
           <div class="flex items-center gap-3">
+            <NuxtLink to="/admin/messages" class="relative" title="User Messages">
+              <UIcon name="i-lucide-message-square" class="size-5 text-gray-500 hover:text-red-600 transition-colors" />
+              <span v-if="unreadMessagesCount > 0" class="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-red-600 text-[10px] font-bold text-white">{{ unreadMessagesCount > 9 ? '9+' : unreadMessagesCount }}</span>
+            </NuxtLink>
             <NuxtLink
               to="/admin/profile"
               class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"

@@ -727,8 +727,12 @@ export function useDataStore() {
     ensureChatSeeded(userId, role)
     let convs = getConversations()
 
+    if (role === 'admin') {
+      return convs.sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime())
+    }
+
     if (role === 'candidate') {
-      let userConvs = convs.filter(c => c.candidateId === userId)
+      let userConvs = convs.filter(c => c.candidateId === userId || c.isSupportChat)
 
       // If user has no conversations yet, bind sample recruiter conversations to this candidate
       if (userConvs.length === 0 && convs.length > 0) {
@@ -739,14 +743,14 @@ export function useDataStore() {
           return c
         })
         saveConversations(convs)
-        userConvs = convs.filter(c => c.candidateId === userId)
+        userConvs = convs.filter(c => c.candidateId === userId || c.isSupportChat)
       }
 
       // If still empty (e.g. initial launch or newly registered candidate), seed fresh conversations for this candidate
       if (userConvs.length === 0) {
         ensureChatSeeded(userId, role, true)
         convs = getConversations()
-        userConvs = convs.filter(c => c.candidateId === userId)
+        userConvs = convs.filter(c => c.candidateId === userId || c.isSupportChat)
       }
 
       // If still empty, return all conversations as fallback so candidate chat is never blank
@@ -769,6 +773,56 @@ export function useDataStore() {
     return getConversations().find(c => c.id === id)
   }
 
+  function acceptConversation(conversationId: string): void {
+    const convs = getConversations()
+    const idx = convs.findIndex(c => c.id === conversationId)
+    if (idx !== -1) {
+      convs[idx].requestStatus = 'accepted'
+      convs[idx].updatedAt = new Date().toISOString()
+      saveConversations(convs)
+
+      const msgs = read<ChatMessage>(KEYS.chatMessages)
+      const notice: ChatMessage = {
+        id: uid('msg-sys'),
+        conversationId,
+        senderId: 'system-shield',
+        senderName: 'HireReady Privacy Shield',
+        senderRole: 'admin',
+        text: '🛡️ Message request accepted. Direct contact information and mutual chat unlocked.',
+        createdAt: new Date().toISOString(),
+        read: true,
+        isSystemNotice: true
+      }
+      msgs.push(notice)
+      saveChatMessages(msgs)
+    }
+  }
+
+  function declineConversation(conversationId: string): void {
+    const convs = getConversations()
+    const idx = convs.findIndex(c => c.id === conversationId)
+    if (idx !== -1) {
+      convs[idx].requestStatus = 'declined'
+      convs[idx].updatedAt = new Date().toISOString()
+      saveConversations(convs)
+
+      const msgs = read<ChatMessage>(KEYS.chatMessages)
+      const notice: ChatMessage = {
+        id: uid('msg-sys'),
+        conversationId,
+        senderId: 'system-shield',
+        senderName: 'HireReady Privacy Shield',
+        senderRole: 'admin',
+        text: '✕ Message request was declined. This thread has been muted.',
+        createdAt: new Date().toISOString(),
+        read: true,
+        isSystemNotice: true
+      }
+      msgs.push(notice)
+      saveChatMessages(msgs)
+    }
+  }
+
   function getOrCreateConversation(params: {
     jobId?: string
     jobTitle?: string
@@ -780,7 +834,9 @@ export function useDataStore() {
     employerName: string
     employerCompany?: string
     initialMessage?: string
-    initialSenderRole?: 'candidate' | 'employer'
+    initialSenderRole?: 'candidate' | 'employer' | 'admin'
+    requestStatus?: 'pending' | 'accepted' | 'declined'
+    isSupportChat?: boolean
   }): Conversation {
     const convs = getConversations()
     let existing = convs.find(c =>
@@ -794,13 +850,16 @@ export function useDataStore() {
     }
 
     const isCandidateSender = params.initialSenderRole === 'candidate'
+    const isAdminSender = params.initialSenderRole === 'admin'
 
     if (!existing) {
+      const defaultRequestStatus = params.requestStatus || (params.initialSenderRole === 'employer' ? 'pending' : 'accepted')
+
       const newConv: Conversation = {
         id: uid('conv'),
         jobId: params.jobId,
         jobTitle: params.jobTitle,
-        companyName: params.companyName || params.employerCompany || 'Hiring Partner',
+        companyName: params.companyName || params.employerCompany || (isAdminSender ? 'HireReady Support' : 'Hiring Partner'),
         candidateId: params.candidateId,
         candidateName: params.candidateName,
         candidateEmail: params.candidateEmail,
@@ -811,8 +870,12 @@ export function useDataStore() {
         lastMessageAt: new Date().toISOString(),
         unreadCandidateCount: (params.initialMessage && !isCandidateSender) ? 1 : 0,
         unreadEmployerCount: (params.initialMessage && isCandidateSender) ? 1 : 0,
+        unreadAdminCount: 0,
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        requestStatus: defaultRequestStatus,
+        initiatedByRole: params.initialSenderRole || 'employer',
+        isSupportChat: Boolean(params.isSupportChat || isAdminSender)
       }
       convs.unshift(newConv)
       saveConversations(convs)
@@ -823,7 +886,7 @@ export function useDataStore() {
           conversationId: newConv.id,
           senderId: isCandidateSender ? params.candidateId : params.employerId,
           senderName: isCandidateSender ? params.candidateName : params.employerName,
-          senderRole: isCandidateSender ? 'candidate' : 'employer',
+          senderRole: params.initialSenderRole || 'employer',
           text: params.initialMessage
         })
       }
@@ -835,7 +898,7 @@ export function useDataStore() {
           conversationId: existing.id,
           senderId: isCandidateSender ? params.candidateId : params.employerId,
           senderName: isCandidateSender ? params.candidateName : params.employerName,
-          senderRole: isCandidateSender ? 'candidate' : 'employer',
+          senderRole: params.initialSenderRole || 'employer',
           text: params.initialMessage
         })
       }
@@ -853,7 +916,7 @@ export function useDataStore() {
 
     // Fallback: If 0 messages found for this conversation, ensure messages are generated/seeded
     if (filtered.length === 0) {
-      if (conversationId === 'conv-razorpay-01' || conversationId === 'conv-flipkart-02') {
+      if (conversationId === 'conv-razorpay-01' || conversationId === 'conv-flipkart-02' || conversationId === 'conv-admin-support-01') {
         ensureChatSeeded(undefined, undefined, true)
         all = read<ChatMessage>(KEYS.chatMessages)
         filtered = all.filter(m => m.conversationId === conversationId)
@@ -865,7 +928,7 @@ export function useDataStore() {
             conversationId: conv.id,
             senderId: conv.employerId || 'emp-lead',
             senderName: conv.employerName || conv.companyName || 'Hiring Lead',
-            senderRole: 'employer',
+            senderRole: conv.isSupportChat ? 'admin' : 'employer',
             text: conv.lastMessageText || `Hello! Thank you for your interest in ${conv.jobTitle || 'our position'}. We look forward to connecting with you.`,
             createdAt: conv.createdAt || new Date().toISOString(),
             read: true
@@ -892,6 +955,7 @@ export function useDataStore() {
     senderRole: 'candidate' | 'employer' | 'admin'
     text: string
     quickAction?: ChatMessage['quickAction']
+    isSystemNotice?: boolean
   }): ChatMessage {
     const all = read<ChatMessage>(KEYS.chatMessages)
     const newMsg: ChatMessage = {
@@ -903,7 +967,8 @@ export function useDataStore() {
       text: params.text,
       createdAt: new Date().toISOString(),
       read: false,
-      quickAction: params.quickAction
+      quickAction: params.quickAction,
+      isSystemNotice: params.isSystemNotice
     }
     all.push(newMsg)
     saveChatMessages(all)
@@ -915,10 +980,11 @@ export function useDataStore() {
       convs[idx].lastMessageText = params.text
       convs[idx].lastMessageAt = newMsg.createdAt
       convs[idx].updatedAt = newMsg.createdAt
-      if (params.senderRole === 'employer') {
-        convs[idx].unreadCandidateCount = (convs[idx].unreadCandidateCount || 0) + 1
-      } else {
+      if (params.senderRole === 'candidate') {
         convs[idx].unreadEmployerCount = (convs[idx].unreadEmployerCount || 0) + 1
+        convs[idx].unreadAdminCount = (convs[idx].unreadAdminCount || 0) + 1
+      } else {
+        convs[idx].unreadCandidateCount = (convs[idx].unreadCandidateCount || 0) + 1
       }
       saveConversations(convs)
     }
@@ -932,8 +998,10 @@ export function useDataStore() {
     if (idx !== -1) {
       if (role === 'candidate') {
         convs[idx].unreadCandidateCount = 0
-      } else {
+      } else if (role === 'employer') {
         convs[idx].unreadEmployerCount = 0
+      } else if (role === 'admin') {
+        convs[idx].unreadAdminCount = 0
       }
       saveConversations(convs)
     }
@@ -952,7 +1020,11 @@ export function useDataStore() {
     }
   }
 
-  function getUnreadMessagesCount(userId: string, role: 'candidate' | 'employer'): number {
+  function getUnreadMessagesCount(userId: string, role: 'candidate' | 'employer' | 'admin'): number {
+    if (role === 'admin') {
+      const convs = getConversations()
+      return convs.reduce((acc, c) => acc + (c.unreadAdminCount || 0), 0)
+    }
     const convs = getConversationsForUser(userId, role)
     return convs.reduce((acc, c) => acc + (role === 'candidate' ? (c.unreadCandidateCount || 0) : (c.unreadEmployerCount || 0)), 0)
   }
@@ -965,16 +1037,19 @@ export function useDataStore() {
     const candId = (role === 'candidate' && currentUserId) ? currentUserId : (currentUserId || 'demo-candidate')
     const conv1Id = 'conv-razorpay-01'
     const conv2Id = 'conv-flipkart-02'
+    const conv3Id = 'conv-admin-support-01'
 
     const now = new Date()
+    const t0 = new Date(now.getTime() - 4 * 3600 * 1000).toISOString()
     const t1 = new Date(now.getTime() - 2 * 3600 * 1000).toISOString()
     const t2 = new Date(now.getTime() - 90 * 60 * 1000).toISOString()
     const t3 = new Date(now.getTime() - 15 * 60 * 1000).toISOString()
 
     const hasConv1 = existing.some(c => c.id === conv1Id)
     const hasConv2 = existing.some(c => c.id === conv2Id)
+    const hasConv3 = existing.some(c => c.id === conv3Id)
 
-    if (existing.length === 0 || !hasConv1 || !hasConv2 || force) {
+    if (existing.length === 0 || !hasConv1 || !hasConv2 || !hasConv3 || force) {
       const seededConvs: Conversation[] = [
         {
           id: conv1Id,
@@ -992,7 +1067,9 @@ export function useDataStore() {
           unreadCandidateCount: 1,
           unreadEmployerCount: 0,
           createdAt: t1,
-          updatedAt: t3
+          updatedAt: t3,
+          requestStatus: 'pending',
+          initiatedByRole: 'employer'
         },
         {
           id: conv2Id,
@@ -1007,21 +1084,45 @@ export function useDataStore() {
           employerCompany: 'Flipkart Engineering Recruiting',
           lastMessageText: 'Your application has been received. Please share your live portfolio link.',
           lastMessageAt: t2,
-          unreadCandidateCount: 1,
+          unreadCandidateCount: 0,
           unreadEmployerCount: 0,
           createdAt: t2,
-          updatedAt: t2
+          updatedAt: t2,
+          requestStatus: 'accepted',
+          initiatedByRole: 'employer'
+        },
+        {
+          id: conv3Id,
+          jobTitle: 'Verified Talent Support & Career Hotline',
+          companyName: 'HireReady Support',
+          candidateId: candId,
+          candidateName: 'Candidate',
+          candidateEmail: 'candidate@hireready.app',
+          employerId: 'admin-support',
+          employerName: 'HireReady Admin Team',
+          employerCompany: 'HireReady Official',
+          lastMessageText: 'Welcome to HireReady! Your account profile is verified. Reach out anytime if you need help with assessment tests or mock calls.',
+          lastMessageAt: t0,
+          unreadCandidateCount: 1,
+          unreadEmployerCount: 0,
+          unreadAdminCount: 0,
+          createdAt: t0,
+          updatedAt: t0,
+          requestStatus: 'accepted',
+          initiatedByRole: 'admin',
+          isSupportChat: true
         }
       ]
 
-      const mergedConvs = [...existing.filter(e => e.id !== conv1Id && e.id !== conv2Id), ...seededConvs]
+      const mergedConvs = [...existing.filter(e => e.id !== conv1Id && e.id !== conv2Id && e.id !== conv3Id), ...seededConvs]
       write(KEYS.conversations, mergedConvs)
     }
 
     const hasConv1Msgs = existingMsgs.some(m => m.conversationId === conv1Id)
     const hasConv2Msgs = existingMsgs.some(m => m.conversationId === conv2Id)
+    const hasConv3Msgs = existingMsgs.some(m => m.conversationId === conv3Id)
 
-    if (existingMsgs.length === 0 || !hasConv1Msgs || !hasConv2Msgs || force) {
+    if (existingMsgs.length === 0 || !hasConv1Msgs || !hasConv2Msgs || !hasConv3Msgs || force) {
       const seededMsgs: ChatMessage[] = [
         {
           id: 'msg-1',
@@ -1066,11 +1167,21 @@ export function useDataStore() {
           senderRole: 'employer',
           text: 'Your application has been received. Please share your live portfolio link.',
           createdAt: t2,
+          read: true
+        },
+        {
+          id: 'msg-5',
+          conversationId: conv3Id,
+          senderId: 'admin-support',
+          senderName: 'HireReady Official Admin',
+          senderRole: 'admin',
+          text: 'Welcome to HireReady! Your account profile is verified. Reach out anytime if you need help with assessment tests or mock calls.',
+          createdAt: t0,
           read: false
         }
       ]
 
-      const mergedMsgs = [...existingMsgs.filter(m => m.conversationId !== conv1Id && m.conversationId !== conv2Id), ...seededMsgs]
+      const mergedMsgs = [...existingMsgs.filter(m => m.conversationId !== conv1Id && m.conversationId !== conv2Id && m.conversationId !== conv3Id), ...seededMsgs]
       write(KEYS.chatMessages, mergedMsgs)
     }
   }
@@ -1106,7 +1217,9 @@ export function useDataStore() {
     chatVersion,
     getConversations, saveConversations, getConversationsForUser, getConversationById,
     getOrCreateConversation, getChatMessages, saveChatMessages, sendMessage,
-    markConversationRead, getUnreadMessagesCount
+    markConversationRead, getUnreadMessagesCount,
+    acceptConversation, declineConversation
   }
 }
+
 

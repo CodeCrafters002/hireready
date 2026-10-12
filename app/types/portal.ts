@@ -241,7 +241,10 @@ export interface ChatMessage {
   createdAt: string
   read: boolean
   quickAction?: ChatAction
+  isSystemNotice?: boolean
 }
+
+export type MessageRequestStatus = 'pending' | 'accepted' | 'declined'
 
 export interface Conversation {
   id: string
@@ -260,6 +263,11 @@ export interface Conversation {
   lastMessageAt: string
   unreadCandidateCount: number
   unreadEmployerCount: number
+  unreadAdminCount?: number
   createdAt: string
   updatedAt: string
+  // Privacy Shield & Message Request status
+  requestStatus?: MessageRequestStatus
+  initiatedByRole?: 'candidate' | 'employer' | 'admin'
+  isSupportChat?: boolean
 }

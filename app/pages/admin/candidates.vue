@@ -41,6 +41,24 @@ function downloadCandidateResume(url?: string, filename?: string) {
   a.click()
   document.body.removeChild(a)
 }
+
+function openMessageCandidate(user: any) {
+  const conv = store.getOrCreateConversation({
+    jobTitle: 'Candidate Support & Career Advisory',
+    companyName: 'HireReady Official Support',
+    candidateId: user.id,
+    candidateName: user.name,
+    candidateEmail: user.email,
+    employerId: 'admin-support',
+    employerName: 'HireReady Support (Admin)',
+    employerCompany: 'HireReady Platform Team',
+    initialMessage: `Hi ${user.name}! This is the HireReady administration team. How can we support your job search or assessments today?`,
+    initialSenderRole: 'admin',
+    requestStatus: 'accepted',
+    isSupportChat: true
+  })
+  navigateTo(`/admin/messages?conversationId=${conv.id}`)
+}
 </script>
 
 <template>
@@ -87,25 +105,37 @@ function downloadCandidateResume(url?: string, filename?: string) {
       <div>
         <UCard v-if="detail">
           <template #header>
-            <div class="flex items-center gap-3">
-              <div class="relative size-12 shrink-0 overflow-hidden rounded-full border border-gray-200 dark:border-gray-700">
-                <img
-                  v-if="detail.profile?.profilePhotoUrl"
-                  :src="detail.profile.profilePhotoUrl"
-                  class="size-full object-cover"
-                  alt="Candidate photo"
-                >
-                <div
-                  v-else
-                  class="grid size-full place-items-center bg-primary-100 text-base font-bold text-primary dark:bg-primary-900"
-                >
-                  {{ detail.user.name.charAt(0) }}
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="relative size-12 shrink-0 overflow-hidden rounded-full border border-gray-200 dark:border-gray-700">
+                  <img
+                    v-if="detail.profile?.profilePhotoUrl"
+                    :src="detail.profile.profilePhotoUrl"
+                    class="size-full object-cover"
+                    alt="Candidate photo"
+                  >
+                  <div
+                    v-else
+                    class="grid size-full place-items-center bg-primary-100 text-base font-bold text-primary dark:bg-primary-900"
+                  >
+                    {{ detail.user.name.charAt(0) }}
+                  </div>
+                </div>
+                <div class="min-w-0">
+                  <h3 class="text-lg font-semibold text-gray-950 dark:text-white truncate">{{ detail.user.name }}</h3>
+                  <p class="text-xs text-gray-500 truncate">{{ detail.user.email }}</p>
                 </div>
               </div>
-              <div>
-                <h3 class="text-lg font-semibold text-gray-950 dark:text-white">{{ detail.user.name }}</h3>
-                <p class="text-xs text-gray-500">{{ detail.user.email }}</p>
-              </div>
+
+              <UButton
+                size="xs"
+                color="primary"
+                variant="solid"
+                icon="i-lucide-message-square"
+                label="Message"
+                class="shrink-0"
+                @click="openMessageCandidate(detail.user)"
+              />
             </div>
           </template>
 
