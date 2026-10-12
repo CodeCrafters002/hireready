@@ -35,6 +35,9 @@ const KEYS = {
   seeded: 'hr_seeded'
 } as const
 
+// ── Reactive Chat Version Trigger (triggers instant UI updates on messages) ──
+const chatVersion = ref(0)
+
 // ─── Generic helpers ──────────────────────────────────────────────────────────
 function read<T>(key: string): T[] {
   if (import.meta.server) return []
@@ -711,11 +714,13 @@ export function useDataStore() {
 
   // ── Direct In-App Chat & Messaging ──────────────────────────────────────────
   function getConversations(): Conversation[] {
+    void chatVersion.value
     return read<Conversation>(KEYS.conversations)
   }
 
   function saveConversations(items: Conversation[]): void {
     write(KEYS.conversations, items)
+    chatVersion.value++
   }
 
   function getConversationsForUser(userId: string, role: 'candidate' | 'employer' | 'admin'): Conversation[] {
@@ -779,9 +784,14 @@ export function useDataStore() {
   }): Conversation {
     const convs = getConversations()
     let existing = convs.find(c =>
-      c.candidateId === params.candidateId &&
-      (params.jobId ? c.jobId === params.jobId : (c.employerId === params.employerId || c.employerCompany === params.employerCompany))
+      (params.jobId && c.jobId === params.jobId && (c.candidateId === params.candidateId || !c.candidateId || c.candidateId === 'demo-candidate')) ||
+      (c.candidateId === params.candidateId && (c.employerId === params.employerId || c.employerCompany === params.employerCompany))
     )
+
+    if (existing && existing.candidateId !== params.candidateId) {
+      existing.candidateId = params.candidateId
+      saveConversations(convs)
+    }
 
     const isCandidateSender = params.initialSenderRole === 'candidate'
 
@@ -835,6 +845,7 @@ export function useDataStore() {
   }
 
   function getChatMessages(conversationId?: string): ChatMessage[] {
+    void chatVersion.value
     let all = read<ChatMessage>(KEYS.chatMessages)
     if (!conversationId) return all
 
@@ -871,6 +882,7 @@ export function useDataStore() {
 
   function saveChatMessages(messages: ChatMessage[]): void {
     write(KEYS.chatMessages, messages)
+    chatVersion.value++
   }
 
   function sendMessage(params: {
@@ -1091,6 +1103,7 @@ export function useDataStore() {
     getGigApplications, saveGigApplications, getGigApplicationsByGig, getGigApplicationsByCandidate,
     applyToGig, updateGigApplicationStatus,
     // Direct In-App Chat & Messaging
+    chatVersion,
     getConversations, saveConversations, getConversationsForUser, getConversationById,
     getOrCreateConversation, getChatMessages, saveChatMessages, sendMessage,
     markConversationRead, getUnreadMessagesCount

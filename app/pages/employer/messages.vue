@@ -28,12 +28,22 @@ const activeEmployerId = computed(() => {
 
 // ── Reactive Data ─────────────────────────────────────────────────────────────
 const searchQuery = ref('')
-const selectedConvId = ref<string>('')
+const selectedConvId = ref<string>((route.query.conversationId as string) || '')
 const newMessageText = ref('')
 const chatContainerRef = ref<HTMLElement | null>(null)
 
 const conversations = computed(() => {
-  const all = store.getConversationsForUser(activeEmployerId.value, 'employer')
+  void store.chatVersion.value
+  let all = store.getConversationsForUser(activeEmployerId.value, 'employer')
+
+  const queryId = route.query.conversationId as string | undefined
+  if (queryId && !all.some(c => c.id === queryId)) {
+    const targetConv = store.getConversationById(queryId)
+    if (targetConv) {
+      all = [targetConv, ...all]
+    }
+  }
+
   if (!searchQuery.value.trim()) return all
   const q = searchQuery.value.toLowerCase().trim()
   return all.filter(c =>
@@ -59,7 +69,8 @@ const activeConversation = computed<Conversation | undefined>(() => {
 })
 
 const messages = computed<ChatMessage[]>(() => {
-  const targetId = selectedConvId.value || activeConversation.value?.id
+  void store.chatVersion.value
+  const targetId = selectedConvId.value || (route.query.conversationId as string) || activeConversation.value?.id
   if (!targetId) return []
   return store.getChatMessages(targetId)
 })
@@ -90,9 +101,10 @@ function handleSendMessage(presetText?: string, quickAction?: ChatMessage['quick
 
   const senderId = currentUser.value?.id || activeEmployerId.value || 'emp-demo'
   const senderName = (currentUser.value as any)?.company || currentUser.value?.name || activeConversation.value.employerName || 'Hiring Lead'
+  const convId = activeConversation.value.id
 
   store.sendMessage({
-    conversationId: activeConversation.value.id,
+    conversationId: convId,
     senderId,
     senderName,
     senderRole: 'employer',
@@ -110,6 +122,28 @@ function handleSendMessage(presetText?: string, quickAction?: ChatMessage['quick
     title: `💬 New message from ${activeConversation.value.companyName || 'Recruiter'}`,
     message: text.slice(0, 120)
   })
+
+  // Simulated candidate reply
+  setTimeout(() => {
+    const currentConv = store.getConversationById(convId)
+    if (!currentConv) return
+
+    let reply = 'Thank you for the update! I will review this right away.'
+    if (quickAction?.type === 'interview_invite') {
+      reply = 'Thank you so much! I am available and looking forward to the screening discussion.'
+    } else if (quickAction?.type === 'request_portfolio') {
+      reply = 'I have updated my portfolio link and shared my latest projects.'
+    }
+
+    store.sendMessage({
+      conversationId: convId,
+      senderId: currentConv.candidateId,
+      senderName: currentConv.candidateName || 'Candidate',
+      senderRole: 'candidate',
+      text: reply
+    })
+    scrollToBottom()
+  }, 2000)
 }
 
 function formatMessageTime(isoString: string): string {

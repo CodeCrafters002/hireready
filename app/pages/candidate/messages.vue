@@ -28,12 +28,23 @@ const activeCandidateId = computed(() => {
 
 // ── Reactive Data ─────────────────────────────────────────────────────────────
 const searchQuery = ref('')
-const selectedConvId = ref<string>('')
+const selectedConvId = ref<string>((route.query.conversationId as string) || '')
 const newMessageText = ref('')
 const chatContainerRef = ref<HTMLElement | null>(null)
 
 const conversations = computed(() => {
-  const all = store.getConversationsForUser(activeCandidateId.value, 'candidate')
+  void store.chatVersion.value
+  let all = store.getConversationsForUser(activeCandidateId.value, 'candidate')
+
+  // If a specific conversation was opened via query param (e.g. from applications page), guarantee it appears
+  const queryId = route.query.conversationId as string | undefined
+  if (queryId && !all.some(c => c.id === queryId)) {
+    const targetConv = store.getConversationById(queryId)
+    if (targetConv) {
+      all = [targetConv, ...all]
+    }
+  }
+
   if (!searchQuery.value.trim()) return all
   const q = searchQuery.value.toLowerCase().trim()
   return all.filter(c =>
@@ -60,7 +71,8 @@ const activeConversation = computed<Conversation | undefined>(() => {
 })
 
 const messages = computed<ChatMessage[]>(() => {
-  const targetId = selectedConvId.value || activeConversation.value?.id
+  void store.chatVersion.value
+  const targetId = selectedConvId.value || (route.query.conversationId as string) || activeConversation.value?.id
   if (!targetId) return []
   return store.getChatMessages(targetId)
 })
@@ -87,9 +99,10 @@ function handleSendMessage(presetText?: string) {
 
   const senderId = currentUser.value?.id || activeCandidateId.value || 'demo-candidate'
   const senderName = currentUser.value?.name || 'You'
+  const convId = activeConversation.value.id
 
   store.sendMessage({
-    conversationId: activeConversation.value.id,
+    conversationId: convId,
     senderId,
     senderName,
     senderRole: 'candidate',
@@ -99,21 +112,34 @@ function handleSendMessage(presetText?: string) {
   newMessageText.value = ''
   scrollToBottom()
 
-  // Simulate realistic employer acknowledgement after 3.5s if it was an interview availability confirmation
-  if (text.toLowerCase().includes('available') || text.toLowerCase().includes('tomorrow') || text.toLowerCase().includes('yes')) {
-    setTimeout(() => {
-      if (activeConversation.value) {
-        store.sendMessage({
-          conversationId: activeConversation.value.id,
-          senderId: activeConversation.value.employerId,
-          senderName: activeConversation.value.employerName || 'Hiring Lead',
-          senderRole: 'employer',
-          text: 'Great! Our recruiter has reserved that slot for you. A calendar invite with the meeting link is attached to your dashboard.'
-        })
-        scrollToBottom()
-      }
-    }, 3500)
-  }
+  // Real-time simulated employer reply
+  setTimeout(() => {
+    const currentConv = store.getConversationById(convId)
+    if (!currentConv) return
+
+    let replyText = 'Thanks for your message! Our talent acquisition team has received your note and will get back to you shortly.'
+    const lower = text.toLowerCase()
+
+    if (lower.includes('available') || lower.includes('tomorrow') || lower.includes('slot') || lower.includes('call') || lower.includes('yes') || lower.includes('ok')) {
+      replyText = 'Great! Our recruiter has reserved that screening slot for you. A calendar invite has been linked to your interviews dashboard.'
+    } else if (lower.includes('portfolio') || lower.includes('github') || lower.includes('resume') || lower.includes('cv')) {
+      replyText = 'Received your updated profile details! Our technical team will review your work samples.'
+    } else if (lower.includes('notice') || lower.includes('join') || lower.includes('immediate')) {
+      replyText = 'Noted! Immediate availability is a huge plus for this role. We are expediting your profile with the hiring manager.'
+    } else if (lower.includes('round') || lower.includes('format') || lower.includes('technical') || lower.includes('question')) {
+      replyText = 'The technical round will focus on practical scenario problem-solving. You can practice related questions on your Assessments page.'
+    }
+
+    store.sendMessage({
+      conversationId: convId,
+      senderId: currentConv.employerId,
+      senderName: currentConv.employerName || currentConv.companyName || 'Hiring Lead',
+      senderRole: 'employer',
+      text: replyText
+    })
+
+    scrollToBottom()
+  }, 1800)
 }
 
 function formatMessageTime(isoString: string): string {

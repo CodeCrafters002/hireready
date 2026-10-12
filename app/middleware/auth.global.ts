@@ -6,12 +6,12 @@ export default defineNuxtRouteMiddleware((to) => {
 
   const path = to.path
 
-  // Candidate-only routes
+  // Candidate-only routes (admins and officers also permitted for supervision & testing)
   if (path.startsWith('/candidate')) {
     if (!isAuthenticated.value) {
       return navigateTo('/auth/sign-in?redirect=' + encodeURIComponent(path))
     }
-    if (currentUser.value?.role !== 'candidate') {
+    if (currentUser.value?.role !== 'candidate' && currentUser.value?.role !== 'admin' && currentUser.value?.role !== 'officer') {
       return navigateTo('/')
     }
   }
