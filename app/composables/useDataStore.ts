@@ -13,7 +13,9 @@ import type {
   GigApplication,
   GigCategory,
   ChatMessage,
-  Conversation
+  Conversation,
+  ChatAttachment,
+  OfferLetterDetails
 } from '~/types/portal'
 
 // ─── Keys ─────────────────────────────────────────────────────────────────────
@@ -1106,6 +1108,7 @@ export function useDataStore() {
     senderRole: 'candidate' | 'employer' | 'admin'
     text: string
     quickAction?: ChatMessage['quickAction']
+    attachments?: ChatAttachment[]
     isSystemNotice?: boolean
   }): ChatMessage {
     const all = read<ChatMessage>(KEYS.chatMessages)
@@ -1119,6 +1122,7 @@ export function useDataStore() {
       createdAt: new Date().toISOString(),
       read: false,
       quickAction: params.quickAction,
+      attachments: params.attachments,
       isSystemNotice: params.isSystemNotice
     }
     all.push(newMsg)
@@ -1133,7 +1137,7 @@ export function useDataStore() {
     const convs = getConversations()
     const idx = convs.findIndex(c => c.id === params.conversationId)
     if (idx !== -1) {
-      convs[idx].lastMessageText = params.text
+      convs[idx].lastMessageText = params.text || (params.attachments?.length ? `📎 ${params.attachments[0].name}` : 'Sent a message')
       convs[idx].lastMessageAt = newMsg.createdAt
       convs[idx].updatedAt = newMsg.createdAt
       if (params.senderRole === 'candidate') {
@@ -1149,6 +1153,144 @@ export function useDataStore() {
     }
 
     return newMsg
+  }
+
+  function updateChatMessage(id: string, updates: Partial<ChatMessage>): ChatMessage | undefined {
+    const all = read<ChatMessage>(KEYS.chatMessages)
+    const idx = all.findIndex(m => m.id === id)
+    if (idx === -1) return undefined
+    const updated = { ...all[idx], ...updates, id }
+    all[idx] = updated
+    saveChatMessages(all)
+
+    // Sync to MongoDB
+    $fetch('/api/chat/messages', { method: 'POST', body: updated }).catch(err => {
+      console.warn('[DataStore] Failed updating message in MongoDB:', err)
+    })
+
+    return updated
+  }
+
+  function respondToChatInterview(params: {
+    messageId: string
+    conversationId: string
+    decision: 'accepted' | 'declined'
+    candidateId: string
+    candidateName: string
+    note?: string
+  }): void {
+    const all = read<ChatMessage>(KEYS.chatMessages)
+    const msg = all.find(m => m.id === params.messageId)
+    if (!msg || !msg.quickAction) return
+
+    msg.quickAction.status = params.decision
+    updateChatMessage(msg.id, { quickAction: msg.quickAction })
+
+    const conv = getConversationById(params.conversationId)
+    const action = msg.quickAction
+
+    // Post automatic response in chat
+    const responseText = params.decision === 'accepted'
+      ? `✅ I have accepted the interview invitation for ${action.roundName || 'the interview'} on ${action.interviewDate || 'the scheduled date'} at ${action.interviewTime || ''}. Looking forward to speaking!`
+      : `✕ I would like to request rescheduling this interview. Note: ${params.note || 'Available at an alternate time.'}`
+
+    sendMessage({
+      conversationId: params.conversationId,
+      senderId: params.candidateId,
+      senderName: params.candidateName,
+      senderRole: 'candidate',
+      text: responseText
+    })
+
+    // If there is an active application for this job & candidate, update application status
+    if (conv?.jobId) {
+      const apps = getApplications()
+      const app = apps.find(a => a.jobId === conv.jobId && (a.candidateId === params.candidateId || a.candidateName === params.candidateName))
+      if (app) {
+        updateApplication(app.id, {
+          status: params.decision === 'accepted' ? 'interview_scheduled' : 'interview_pending',
+          interviewDetails: {
+            roundName: action.roundName || 'Interview Round',
+            platform: (action.interviewType === 'in_person' ? 'phone' : (action.interviewType === 'phone' ? 'phone' : 'google_meet')),
+            meetingLink: action.meetingLink || '',
+            scheduledAt: `${action.interviewDate || ''}T${action.interviewTime || '11:00'}`,
+            durationMinutes: action.durationMinutes || 45,
+            interviewerName: action.interviewerName || conv.employerName || 'Hiring Lead',
+            notes: action.notes,
+            status: params.decision === 'accepted' ? 'candidate_accepted' : 'reschedule_requested'
+          }
+        })
+      }
+    }
+
+    // In-app notification to recruiter/admin
+    if (conv) {
+      addNotification({
+        userId: conv.employerId,
+        type: 'interview',
+        title: params.decision === 'accepted' ? `✅ Interview Accepted by ${params.candidateName}` : `📅 Reschedule Requested by ${params.candidateName}`,
+        message: `${params.candidateName} ${params.decision === 'accepted' ? 'confirmed attendance for' : 'requested to reschedule'} ${action.roundName || 'the interview'}.`
+      })
+    }
+  }
+
+  function respondToChatOffer(params: {
+    messageId: string
+    conversationId: string
+    decision: 'accepted' | 'declined'
+    candidateId: string
+    candidateName: string
+  }): void {
+    const all = read<ChatMessage>(KEYS.chatMessages)
+    const msg = all.find(m => m.id === params.messageId)
+    if (!msg || !msg.quickAction) return
+
+    msg.quickAction.offerStatus = params.decision
+    updateChatMessage(msg.id, { quickAction: msg.quickAction })
+
+    const conv = getConversationById(params.conversationId)
+    const action = msg.quickAction
+
+    const responseText = params.decision === 'accepted'
+      ? `🎉 I am thrilled to officially ACCEPT the Offer of Employment for ${action.offerRole || 'the position'}! Thank you for this opportunity.`
+      : `Thank you for extending this offer for ${action.offerRole || 'the position'}. After careful consideration, I am respectfully declining at this time.`
+
+    sendMessage({
+      conversationId: params.conversationId,
+      senderId: params.candidateId,
+      senderName: params.candidateName,
+      senderRole: 'candidate',
+      text: responseText
+    })
+
+    if (conv?.jobId) {
+      const apps = getApplications()
+      const app = apps.find(a => a.jobId === conv.jobId && (a.candidateId === params.candidateId || a.candidateName === params.candidateName))
+      if (app) {
+        updateApplication(app.id, {
+          status: params.decision === 'accepted' ? 'selected' : 'rejected',
+          offerLetterDetails: {
+            jobTitle: action.offerRole || app.jobId,
+            companyName: action.offerCompany || conv.companyName || 'HireReady Partner',
+            salary: action.offerSalary || 'Competitive',
+            joiningDate: action.offerJoiningDate || '',
+            workMode: action.offerWorkMode || 'Full-time',
+            location: action.offerLocation || 'Remote / Hybrid',
+            issuedAt: new Date().toISOString(),
+            status: params.decision
+          }
+        })
+      }
+    }
+
+    if (conv) {
+      addNotification({
+        userId: conv.employerId,
+        type: 'selection',
+        title: params.decision === 'accepted' ? `🎉 Offer Accepted by ${params.candidateName}!` : `Offer Update: ${params.candidateName}`,
+        message: `${params.candidateName} has ${params.decision === 'accepted' ? 'officially accepted' : 'declined'} your employment offer for ${action.offerRole || 'the role'}.`
+      })
+    }
   }
 
   function markConversationRead(conversationId: string, role: 'candidate' | 'employer' | 'admin'): void {
@@ -1377,6 +1519,7 @@ export function useDataStore() {
     chatVersion, syncChatWithDatabase,
     getConversations, saveConversations, getConversationsForUser, getConversationById,
     getOrCreateConversation, getChatMessages, saveChatMessages, sendMessage,
+    updateChatMessage, respondToChatInterview, respondToChatOffer,
     markConversationRead, getUnreadMessagesCount,
     acceptConversation, declineConversation
   }

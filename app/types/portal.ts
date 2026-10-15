@@ -114,6 +114,20 @@ export type ApplicationStatus =
   | 'selected'
   | 'rejected'
 
+export interface OfferLetterDetails {
+  jobTitle: string
+  companyName: string
+  salary: string
+  joiningDate: string
+  workMode?: string
+  location?: string
+  department?: string
+  expiryDate?: string
+  issuedAt: string
+  status: 'sent' | 'accepted' | 'declined'
+  letterContent?: string
+}
+
 export interface Application {
   id: string
   jobId: string
@@ -127,6 +141,7 @@ export interface Application {
   interviewSlot?: string
   interviewFeedback?: string
   interviewDetails?: InterviewDetails
+  offerLetterDetails?: OfferLetterDetails
   createdAt: string
   updatedAt: string
 }
@@ -225,10 +240,38 @@ export interface AppNotification {
 }
 
 // ─── Direct In-App Chat & Messaging ───────────────────────────────────────────
+export interface ChatAttachment {
+  name: string
+  size: number
+  type: string
+  url: string
+}
+
 export interface ChatAction {
   type: 'interview_invite' | 'request_portfolio' | 'offer_letter' | 'custom'
   title: string
   url?: string
+  // Interactive Interview Invitation Details
+  roundName?: string
+  interviewDate?: string
+  interviewTime?: string
+  durationMinutes?: number
+  interviewType?: 'video' | 'phone' | 'in_person'
+  meetingLink?: string
+  interviewerName?: string
+  notes?: string
+  status?: 'pending' | 'accepted' | 'declined'
+  // Interactive Offer Letter Details
+  offerRole?: string
+  offerCompany?: string
+  offerSalary?: string
+  offerJoiningDate?: string
+  offerLocation?: string
+  offerWorkMode?: string
+  offerDepartment?: string
+  offerExpiryDate?: string
+  offerStatus?: 'pending' | 'accepted' | 'declined'
+  offerLetterContent?: string
 }
 
 export interface ChatMessage {
@@ -241,6 +284,7 @@ export interface ChatMessage {
   createdAt: string
   read: boolean
   quickAction?: ChatAction
+  attachments?: ChatAttachment[]
   isSystemNotice?: boolean
 }
 

@@ -11,6 +11,7 @@ const unreadMessagesCount = computed(() => {
 
 const navItems = [
   { label: 'Client Dashboard', icon: 'i-lucide-layout-dashboard', to: '/employer' },
+  { label: 'Hiring Pipeline (Kanban) 📋', icon: 'i-lucide-kanban', to: '/employer/applications' },
   { label: 'Candidate Messages 💬', icon: 'i-lucide-message-square', to: '/employer/messages' },
   { label: '1-Day Gigs & Shifts', icon: 'i-lucide-calendar-clock', to: '/employer/gigs' },
   { label: 'Plans & Unlock Credits', icon: 'i-lucide-sparkles', to: '/pricing?role=employer' },

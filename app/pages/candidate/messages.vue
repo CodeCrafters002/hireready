@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Conversation, ChatMessage } from '~/types/portal'
+import type { Conversation, ChatMessage, ChatAttachment } from '~/types/portal'
 
 definePageMeta({ layout: 'candidate' })
 
@@ -181,9 +181,49 @@ function handleDeclineRequest() {
   scrollToBottom()
 }
 
+const pendingAttachments = ref<ChatAttachment[]>([])
+const fileInputRef = ref<HTMLInputElement | null>(null)
+
+function triggerFileInput() {
+  fileInputRef.value?.click()
+}
+
+function handleFileUpload(e: Event) {
+  const target = e.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  if (file.size > 5 * 1024 * 1024) {
+    alert('File size exceeds 5MB limit.')
+    return
+  }
+
+  const reader = new FileReader()
+  reader.onload = () => {
+    pendingAttachments.value.push({
+      name: file.name,
+      size: file.size,
+      type: file.type || 'application/octet-stream',
+      url: reader.result as string
+    })
+    target.value = ''
+  }
+  reader.readAsDataURL(file)
+}
+
+function removeAttachment(index: number) {
+  pendingAttachments.value.splice(index, 1)
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 function handleSendMessage(presetText?: string) {
   const text = presetText || newMessageText.value.trim()
-  if (!text || !activeConversation.value) return
+  if ((!text && pendingAttachments.value.length === 0) || !activeConversation.value) return
 
   // Prevent sending if request is pending
   if (activeConversation.value.requestStatus === 'pending') {
@@ -194,16 +234,90 @@ function handleSendMessage(presetText?: string) {
   const senderName = currentUser.value?.name || 'You'
   const convId = activeConversation.value.id
 
+  const attachments = pendingAttachments.value.length ? [...pendingAttachments.value] : undefined
+
   store.sendMessage({
     conversationId: convId,
     senderId,
     senderName,
     senderRole: 'candidate',
-    text
+    text: text || (attachments?.length ? `📎 Shared ${attachments[0].name}` : ''),
+    attachments
   })
 
   newMessageText.value = ''
+  pendingAttachments.value = []
   scrollToBottom()
+}
+
+function handleAcceptInterview(msg: ChatMessage) {
+  if (!activeConversation.value || !msg.quickAction) return
+  store.respondToChatInterview({
+    messageId: msg.id,
+    conversationId: activeConversation.value.id,
+    decision: 'accepted',
+    candidateId: activeCandidateId.value,
+    candidateName: currentUser.value?.name || 'Candidate'
+  })
+}
+
+function handleDeclineInterview(msg: ChatMessage) {
+  if (!activeConversation.value || !msg.quickAction) return
+  const note = prompt('Please share your preferred alternate dates/times for rescheduling:') || 'Requesting alternate schedule.'
+  store.respondToChatInterview({
+    messageId: msg.id,
+    conversationId: activeConversation.value.id,
+    decision: 'declined',
+    candidateId: activeCandidateId.value,
+    candidateName: currentUser.value?.name || 'Candidate',
+    note
+  })
+}
+
+function createGoogleCalendarUrl(action: ChatMessage['quickAction']): string {
+  if (!action || !action.interviewDate) return '#'
+  const title = encodeURIComponent(`${action.roundName || 'Interview'} with ${activeConversation.value?.companyName || 'HireReady'}`)
+  const dateStr = action.interviewDate.replace(/-/g, '')
+  const timeStr = (action.interviewTime || '11:00').replace(':', '') + '00'
+  const start = `${dateStr}T${timeStr}`
+  const end = `${dateStr}T${String(Number(timeStr.slice(0, 2)) + 1).padStart(2, '0')}${timeStr.slice(2)}`
+  const details = encodeURIComponent(`Meeting Link: ${action.meetingLink || 'Video Meet'}\nNotes: ${action.notes || ''}`)
+  const location = encodeURIComponent(action.meetingLink || 'Online Video Meeting')
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${details}&location=${location}`
+}
+
+// Offer Review Modal State
+const reviewingOfferMsg = ref<ChatMessage | null>(null)
+const isOfferReviewModalOpen = ref(false)
+
+function openOfferReview(msg: ChatMessage) {
+  reviewingOfferMsg.value = msg
+  isOfferReviewModalOpen.value = true
+}
+
+function handleAcceptOffer(msg: ChatMessage) {
+  if (!activeConversation.value) return
+  store.respondToChatOffer({
+    messageId: msg.id,
+    conversationId: activeConversation.value.id,
+    decision: 'accepted',
+    candidateId: activeCandidateId.value,
+    candidateName: currentUser.value?.name || 'Candidate'
+  })
+  isOfferReviewModalOpen.value = false
+}
+
+function handleDeclineOffer(msg: ChatMessage) {
+  if (!activeConversation.value) return
+  if (!confirm('Are you sure you wish to decline this employment offer?')) return
+  store.respondToChatOffer({
+    messageId: msg.id,
+    conversationId: activeConversation.value.id,
+    decision: 'declined',
+    candidateId: activeCandidateId.value,
+    candidateName: currentUser.value?.name || 'Candidate'
+  })
+  isOfferReviewModalOpen.value = false
 }
 
 function formatMessageTime(isoString: string): string {
@@ -592,10 +706,141 @@ const quickReplies = [
                     />
                   </div>
 
-                  <p class="text-xs leading-relaxed whitespace-pre-wrap">{{ msg.text }}</p>
+                  <p v-if="msg.text" class="text-xs leading-relaxed whitespace-pre-wrap">{{ msg.text }}</p>
 
-                  <!-- Action button inside message if provided -->
-                  <div v-if="msg.quickAction" class="mt-2.5 pt-2 border-t border-indigo-100/30 dark:border-gray-700">
+                  <!-- Attachments inside message bubble -->
+                  <div v-if="msg.attachments && msg.attachments.length" class="mt-2 space-y-1.5">
+                    <a
+                      v-for="att in msg.attachments"
+                      :key="att.name"
+                      :href="att.url"
+                      :download="att.name"
+                      target="_blank"
+                      class="flex items-center gap-2 rounded-xl border p-2 text-xs transition"
+                      :class="msg.senderRole === 'candidate' ? 'bg-indigo-700/60 border-indigo-500/50 text-white hover:bg-indigo-700' : 'bg-gray-50 border-gray-200 text-gray-800 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100 hover:bg-gray-100'"
+                    >
+                      <UIcon :name="att.type.includes('image') ? 'i-lucide-image' : 'i-lucide-file-text'" class="size-4 shrink-0" />
+                      <div class="min-w-0 flex-1">
+                        <p class="truncate font-semibold text-[11px]">{{ att.name }}</p>
+                        <p class="text-[9px] opacity-75">{{ formatFileSize(att.size) }}</p>
+                      </div>
+                      <UIcon name="i-lucide-download" class="size-3.5 shrink-0 opacity-80" />
+                    </a>
+                  </div>
+
+                  <!-- ── Interactive Interview Invitation Card ── -->
+                  <div
+                    v-if="msg.quickAction && msg.quickAction.type === 'interview_invite'"
+                    class="mt-2.5 rounded-xl border border-indigo-200 bg-indigo-50/80 p-3 text-gray-900 dark:border-indigo-900/60 dark:bg-indigo-950/40 dark:text-white shadow-2xs"
+                  >
+                    <div class="flex items-center justify-between gap-2 mb-2">
+                      <div class="flex items-center gap-1.5 min-w-0">
+                        <UIcon name="i-lucide-calendar-clock" class="size-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                        <h5 class="font-bold text-xs truncate">{{ msg.quickAction.roundName || 'Interview Invitation' }}</h5>
+                      </div>
+                      <UBadge
+                        :color="msg.quickAction.status === 'accepted' ? 'success' : msg.quickAction.status === 'declined' ? 'error' : 'warning'"
+                        variant="subtle"
+                        size="xs"
+                        :label="msg.quickAction.status === 'accepted' ? '✅ Confirmed' : msg.quickAction.status === 'declined' ? 'Reschedule Requested' : 'Awaiting Confirmation'"
+                        class="shrink-0"
+                      />
+                    </div>
+
+                    <div class="space-y-1 text-[11px] text-gray-600 dark:text-gray-300">
+                      <p class="flex items-center gap-1.5">
+                        <UIcon name="i-lucide-calendar" class="size-3.5 text-gray-400 shrink-0" />
+                        <span><strong>{{ msg.quickAction.interviewDate }}</strong> at <strong>{{ msg.quickAction.interviewTime }}</strong> ({{ msg.quickAction.durationMinutes || 45 }} mins)</span>
+                      </p>
+                      <p class="flex items-center gap-1.5">
+                        <UIcon name="i-lucide-video" class="size-3.5 text-gray-400 shrink-0" />
+                        <span>Platform: {{ msg.quickAction.interviewType === 'video' ? 'Google Meet Video' : msg.quickAction.interviewType === 'phone' ? 'Phone Screening' : 'In-Person' }}</span>
+                      </p>
+                      <p v-if="msg.quickAction.notes" class="text-[10px] text-gray-500 italic mt-1">
+                        "{{ msg.quickAction.notes }}"
+                      </p>
+                    </div>
+
+                    <!-- Actions for candidate if status is pending -->
+                    <div v-if="msg.quickAction.status === 'pending'" class="mt-3 flex items-center gap-2 pt-2 border-t border-indigo-200/60 dark:border-indigo-800/60">
+                      <button
+                        type="button"
+                        class="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-2xs hover:bg-emerald-700 active:scale-95 transition cursor-pointer"
+                        @click="handleAcceptInterview(msg)"
+                      >
+                        <UIcon name="i-lucide-check-circle" class="size-3.5" />
+                        <span>Accept Interview</span>
+                      </button>
+                      <button
+                        type="button"
+                        class="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 active:scale-95 transition cursor-pointer"
+                        @click="handleDeclineInterview(msg)"
+                      >
+                        <span>Reschedule</span>
+                      </button>
+                    </div>
+
+                    <!-- If status is accepted -->
+                    <div v-else-if="msg.quickAction.status === 'accepted'" class="mt-2.5 pt-2 border-t border-indigo-200/60 dark:border-indigo-800/60 flex flex-wrap items-center gap-2">
+                      <a
+                        v-if="msg.quickAction.meetingLink"
+                        :href="msg.quickAction.meetingLink"
+                        target="_blank"
+                        class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1 text-xs font-bold text-white shadow-2xs hover:bg-indigo-700 transition"
+                      >
+                        <UIcon name="i-lucide-video" class="size-3.5" />
+                        <span>Join Google Meet</span>
+                      </a>
+                      <a
+                        :href="createGoogleCalendarUrl(msg.quickAction)"
+                        target="_blank"
+                        class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 transition"
+                      >
+                        <UIcon name="i-lucide-calendar" class="size-3.5" />
+                        <span>Add to Google Calendar</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  <!-- ── Interactive Offer Letter Card ── -->
+                  <div
+                    v-else-if="msg.quickAction && msg.quickAction.type === 'offer_letter'"
+                    class="mt-2.5 rounded-xl border border-emerald-300 bg-emerald-50/80 p-3.5 text-gray-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-white shadow-2xs"
+                  >
+                    <div class="flex items-center justify-between gap-2 mb-2">
+                      <div class="flex items-center gap-1.5 min-w-0">
+                        <UIcon name="i-lucide-file-badge" class="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        <h5 class="font-bold text-xs text-emerald-950 dark:text-emerald-200 truncate">Formal Offer of Employment</h5>
+                      </div>
+                      <UBadge
+                        :color="msg.quickAction.offerStatus === 'accepted' ? 'success' : msg.quickAction.offerStatus === 'declined' ? 'error' : 'warning'"
+                        variant="subtle"
+                        size="xs"
+                        :label="msg.quickAction.offerStatus === 'accepted' ? '🎉 Accepted' : msg.quickAction.offerStatus === 'declined' ? 'Declined' : 'Pending Response'"
+                        class="shrink-0"
+                      />
+                    </div>
+
+                    <div class="space-y-1 text-[11px] text-gray-700 dark:text-gray-300">
+                      <p><strong>Position:</strong> {{ msg.quickAction.offerRole }}</p>
+                      <p><strong>Total Compensation:</strong> <span class="font-bold text-emerald-700 dark:text-emerald-300">{{ msg.quickAction.offerSalary }}</span></p>
+                      <p v-if="msg.quickAction.offerJoiningDate"><strong>Joining Date:</strong> {{ msg.quickAction.offerJoiningDate }}</p>
+                    </div>
+
+                    <div class="mt-3 pt-2.5 border-t border-emerald-200 dark:border-emerald-800 flex items-center gap-2">
+                      <button
+                        type="button"
+                        class="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-2xs hover:bg-emerald-700 active:scale-95 transition cursor-pointer"
+                        @click="openOfferReview(msg)"
+                      >
+                        <UIcon name="i-lucide-file-text" class="size-3.5" />
+                        <span>Review Full Offer Letter &amp; Sign</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Standard quick action button if other type -->
+                  <div v-else-if="msg.quickAction" class="mt-2.5 pt-2 border-t border-indigo-100/30 dark:border-gray-700">
                     <UButton
                       :to="msg.quickAction.url || '/candidate/interviews'"
                       size="xs"
@@ -612,7 +857,7 @@ const quickReplies = [
                     :class="msg.senderRole === 'candidate' ? 'text-indigo-200' : 'text-gray-400'"
                   >
                     {{ formatMessageTime(msg.createdAt) }}
-                    <span v-if="msg.senderRole === 'candidate'"> · ✓✓</span>
+                    <span v-if="msg.senderRole === 'candidate'" :class="msg.read ? 'text-sky-300 font-bold' : 'text-indigo-200'"> · ✓✓</span>
                   </div>
                 </div>
               </div>
@@ -640,11 +885,42 @@ const quickReplies = [
           </p>
         </div>
 
-        <!-- Message Input Bar (Fixed at bottom) -->
+        <!-- Pending File Attachment Preview Pill Bar -->
+        <div v-if="pendingAttachments.length > 0" class="px-3.5 py-2 border-t border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-800/50 flex flex-wrap gap-2 shrink-0">
+          <div
+            v-for="(att, idx) in pendingAttachments"
+            :key="att.name"
+            class="inline-flex items-center gap-2 rounded-lg bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-2.5 py-1 text-xs shadow-2xs"
+          >
+            <UIcon :name="att.type.includes('image') ? 'i-lucide-image' : 'i-lucide-file-text'" class="size-3.5 text-indigo-500" />
+            <span class="max-w-[150px] truncate font-medium">{{ att.name }}</span>
+            <span class="text-[10px] text-gray-400">({{ formatFileSize(att.size) }})</span>
+            <button type="button" class="text-gray-400 hover:text-red-500 cursor-pointer" @click="removeAttachment(idx)">
+              <UIcon name="i-lucide-x" class="size-3" />
+            </button>
+          </div>
+        </div>
+
+        <!-- Message Input Bar (Fixed at bottom) with Paperclip Attachment -->
         <div
-          v-else
+          v-if="activeConversation.requestStatus !== 'pending' && activeConversation.requestStatus !== 'declined'"
           class="p-3.5 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex items-center gap-2 shrink-0"
         >
+          <input
+            ref="fileInputRef"
+            type="file"
+            class="hidden"
+            accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+            @change="handleFileUpload"
+          />
+          <button
+            type="button"
+            class="grid size-9 place-items-center rounded-xl text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-gray-800 transition cursor-pointer shrink-0"
+            title="Attach PDF resume, document, or image"
+            @click="triggerFileInput"
+          >
+            <UIcon name="i-lucide-paperclip" class="size-4.5" />
+          </button>
           <input
             v-model="newMessageText"
             type="text"
@@ -657,9 +933,69 @@ const quickReplies = [
             icon="i-lucide-send"
             size="sm"
             label="Send"
-            :disabled="!newMessageText.trim()"
+            :disabled="!newMessageText.trim() && pendingAttachments.length === 0"
             @click="handleSendMessage()"
           />
+        </div>
+      </div>
+
+      <!-- Candidate Offer Review Modal -->
+      <div
+        v-if="isOfferReviewModalOpen && reviewingOfferMsg?.quickAction"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+        @click.self="isOfferReviewModalOpen = false"
+      >
+        <div class="relative w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl border border-gray-200 dark:border-gray-800 dark:bg-gray-900 animate-in fade-in zoom-in-95 duration-150">
+          <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-800 bg-emerald-50/60 dark:bg-emerald-950/40">
+            <div class="flex items-center gap-2.5">
+              <div class="grid size-9 place-items-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
+                <UIcon name="i-lucide-file-badge" class="size-5" />
+              </div>
+              <div>
+                <h3 class="font-bold text-sm text-gray-950 dark:text-white">Offer of Employment</h3>
+                <p class="text-xs text-gray-500">{{ reviewingOfferMsg.quickAction.offerCompany }} · {{ reviewingOfferMsg.quickAction.offerRole }}</p>
+              </div>
+            </div>
+            <button type="button" class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer" @click="isOfferReviewModalOpen = false">
+              <UIcon name="i-lucide-x" class="size-5" />
+            </button>
+          </div>
+
+          <div class="p-6 max-h-[65vh] overflow-y-auto space-y-4">
+            <div class="rounded-xl border border-gray-200 bg-gray-50/60 p-4 dark:border-gray-700 dark:bg-gray-800/40 text-xs whitespace-pre-wrap font-mono leading-relaxed text-gray-800 dark:text-gray-200">
+              {{ reviewingOfferMsg.quickAction.offerLetterContent || reviewingOfferMsg.text }}
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/40">
+            <span class="text-xs text-gray-500">
+              Expires: <strong>{{ reviewingOfferMsg.quickAction.offerExpiryDate || 'Within 5 days' }}</strong>
+            </span>
+            <div class="flex items-center gap-2">
+              <UButton
+                v-if="reviewingOfferMsg.quickAction.offerStatus === 'pending'"
+                color="error"
+                variant="ghost"
+                size="sm"
+                label="Decline Offer"
+                @click="handleDeclineOffer(reviewingOfferMsg)"
+              />
+              <UButton
+                v-if="reviewingOfferMsg.quickAction.offerStatus === 'pending'"
+                color="success"
+                size="sm"
+                icon="i-lucide-check-circle"
+                label="Accept Employment Offer 🎉"
+                @click="handleAcceptOffer(reviewingOfferMsg)"
+              />
+              <UBadge
+                v-else
+                :color="reviewingOfferMsg.quickAction.offerStatus === 'accepted' ? 'success' : 'error'"
+                size="md"
+                :label="reviewingOfferMsg.quickAction.offerStatus === 'accepted' ? '🎉 You Accepted This Offer' : 'Offer Declined'"
+              />
+            </div>
+          </div>
         </div>
       </div>
 

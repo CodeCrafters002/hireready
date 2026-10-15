@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import type { Conversation, ChatMessage } from '~/types/portal'
+import type { Conversation, ChatMessage, ChatAttachment } from '~/types/portal'
+import ChatInterviewModal from '~/components/chat/ChatInterviewModal.vue'
+import ChatOfferLetterModal from '~/components/chat/ChatOfferLetterModal.vue'
 
 definePageMeta({ layout: 'admin' })
 
@@ -149,20 +151,67 @@ function scrollToBottom(instant = false) {
   })
 }
 
-function handleSendMessage(presetText?: string) {
+const isInterviewModalOpen = ref(false)
+const isOfferModalOpen = ref(false)
+
+const pendingAttachments = ref<ChatAttachment[]>([])
+const fileInputRef = ref<HTMLInputElement | null>(null)
+
+function triggerFileInput() {
+  fileInputRef.value?.click()
+}
+
+function handleFileUpload(e: Event) {
+  const target = e.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  if (file.size > 5 * 1024 * 1024) {
+    alert('File size exceeds 5MB limit.')
+    return
+  }
+
+  const reader = new FileReader()
+  reader.onload = () => {
+    pendingAttachments.value.push({
+      name: file.name,
+      size: file.size,
+      type: file.type || 'application/octet-stream',
+      url: reader.result as string
+    })
+    target.value = ''
+  }
+  reader.readAsDataURL(file)
+}
+
+function removeAttachment(index: number) {
+  pendingAttachments.value.splice(index, 1)
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function handleSendMessage(presetText?: string, quickAction?: ChatMessage['quickAction']) {
   const text = presetText || newMessageText.value.trim()
-  if (!text || !activeConversation.value) return
+  if ((!text && pendingAttachments.value.length === 0) || !activeConversation.value) return
 
   const senderId = currentUser.value?.id || 'admin-support'
   const senderName = currentUser.value?.name ? `${currentUser.value.name} (Admin)` : 'HireReady Admin Team'
   const convId = activeConversation.value.id
+
+  const attachments = pendingAttachments.value.length ? [...pendingAttachments.value] : undefined
 
   store.sendMessage({
     conversationId: convId,
     senderId,
     senderName,
     senderRole: 'admin',
-    text
+    text: text || (attachments?.length ? `📎 Sent ${attachments[0].name}` : ''),
+    quickAction,
+    attachments
   })
 
   // If conversation was pending, automatically accept upon admin engagement
@@ -171,6 +220,7 @@ function handleSendMessage(presetText?: string) {
   }
 
   newMessageText.value = ''
+  pendingAttachments.value = []
   scrollToBottom()
 
   // In-app notification for candidate
@@ -178,7 +228,7 @@ function handleSendMessage(presetText?: string) {
     userId: activeConversation.value.candidateId,
     type: 'general',
     title: '🛡️ Official Message from HireReady Admin',
-    message: text.slice(0, 120)
+    message: text ? text.slice(0, 120) : 'Sent an attachment'
   })
 }
 
@@ -470,9 +520,25 @@ const adminTemplates = [
 
           <div class="flex items-center gap-1.5 shrink-0">
             <UButton
-              v-if="activeConversation.requestStatus === 'pending'"
               size="xs"
               color="primary"
+              variant="solid"
+              icon="i-lucide-calendar-plus"
+              label="Schedule Interview"
+              @click="isInterviewModalOpen = true"
+            />
+            <UButton
+              size="xs"
+              color="success"
+              variant="soft"
+              icon="i-lucide-file-badge"
+              label="Send Offer"
+              @click="isOfferModalOpen = true"
+            />
+            <UButton
+              v-if="activeConversation.requestStatus === 'pending'"
+              size="xs"
+              color="warning"
               variant="soft"
               icon="i-lucide-check-circle"
               label="Unlock Thread"
@@ -557,14 +623,102 @@ const adminTemplates = [
                     />
                   </div>
 
-                  <p class="text-xs leading-relaxed whitespace-pre-wrap">{{ msg.text }}</p>
+                  <p v-if="msg.text" class="text-xs leading-relaxed whitespace-pre-wrap">{{ msg.text }}</p>
+
+                  <!-- Attachments inside message bubble -->
+                  <div v-if="msg.attachments && msg.attachments.length" class="mt-2 space-y-1.5">
+                    <a
+                      v-for="att in msg.attachments"
+                      :key="att.name"
+                      :href="att.url"
+                      :download="att.name"
+                      target="_blank"
+                      class="flex items-center gap-2 rounded-xl border p-2 text-xs transition"
+                      :class="msg.senderRole === 'admin' ? 'bg-red-700/60 border-red-500/50 text-white hover:bg-red-700' : 'bg-gray-50 border-gray-200 text-gray-800 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100 hover:bg-gray-100'"
+                    >
+                      <UIcon :name="att.type.includes('image') ? 'i-lucide-image' : 'i-lucide-file-text'" class="size-4 shrink-0" />
+                      <div class="min-w-0 flex-1">
+                        <p class="truncate font-semibold text-[11px]">{{ att.name }}</p>
+                        <p class="text-[9px] opacity-75">{{ formatFileSize(att.size) }}</p>
+                      </div>
+                      <UIcon name="i-lucide-download" class="size-3.5 shrink-0 opacity-80" />
+                    </a>
+                  </div>
+
+                  <!-- ── Interactive Interview Invitation Card ── -->
+                  <div
+                    v-if="msg.quickAction && msg.quickAction.type === 'interview_invite'"
+                    class="mt-2.5 rounded-xl border border-indigo-200 bg-white/90 p-3 text-gray-900 shadow-2xs"
+                  >
+                    <div class="flex items-center justify-between gap-2 mb-2">
+                      <div class="flex items-center gap-1.5 min-w-0">
+                        <UIcon name="i-lucide-calendar-clock" class="size-4 text-indigo-600 shrink-0" />
+                        <h5 class="font-bold text-xs truncate">{{ msg.quickAction.roundName || 'Interview Invitation' }}</h5>
+                      </div>
+                      <UBadge
+                        :color="msg.quickAction.status === 'accepted' ? 'success' : msg.quickAction.status === 'declined' ? 'error' : 'warning'"
+                        variant="subtle"
+                        size="xs"
+                        :label="msg.quickAction.status === 'accepted' ? '✅ Confirmed' : msg.quickAction.status === 'declined' ? 'Reschedule Requested' : 'Awaiting Confirmation'"
+                        class="shrink-0"
+                      />
+                    </div>
+
+                    <div class="space-y-1 text-[11px] text-gray-600">
+                      <p class="flex items-center gap-1.5">
+                        <UIcon name="i-lucide-calendar" class="size-3.5 text-gray-400 shrink-0" />
+                        <span><strong>{{ msg.quickAction.interviewDate }}</strong> at <strong>{{ msg.quickAction.interviewTime }}</strong> ({{ msg.quickAction.durationMinutes || 45 }} mins)</span>
+                      </p>
+                      <p class="flex items-center gap-1.5">
+                        <UIcon name="i-lucide-video" class="size-3.5 text-gray-400 shrink-0" />
+                        <span>Platform: {{ msg.quickAction.interviewType === 'video' ? 'Google Meet Video' : msg.quickAction.interviewType === 'phone' ? 'Phone Screening' : 'In-Person' }}</span>
+                      </p>
+                    </div>
+
+                    <div v-if="msg.quickAction.meetingLink" class="mt-2.5 pt-2 border-t border-indigo-100">
+                      <a
+                        :href="msg.quickAction.meetingLink"
+                        target="_blank"
+                        class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1 text-xs font-bold text-white shadow-2xs hover:bg-indigo-700 transition"
+                      >
+                        <UIcon name="i-lucide-video" class="size-3.5" />
+                        <span>Open Video Meeting Room</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  <!-- ── Interactive Offer Letter Card ── -->
+                  <div
+                    v-else-if="msg.quickAction && msg.quickAction.type === 'offer_letter'"
+                    class="mt-2.5 rounded-xl border border-emerald-300 bg-white/90 p-3.5 text-gray-900 shadow-2xs"
+                  >
+                    <div class="flex items-center justify-between gap-2 mb-2">
+                      <div class="flex items-center gap-1.5 min-w-0">
+                        <UIcon name="i-lucide-file-badge" class="size-4 text-emerald-600 shrink-0" />
+                        <h5 class="font-bold text-xs text-emerald-950 truncate">Official Employment Offer</h5>
+                      </div>
+                      <UBadge
+                        :color="msg.quickAction.offerStatus === 'accepted' ? 'success' : msg.quickAction.offerStatus === 'declined' ? 'error' : 'warning'"
+                        variant="subtle"
+                        size="xs"
+                        :label="msg.quickAction.offerStatus === 'accepted' ? '🎉 Accepted by Candidate' : msg.quickAction.offerStatus === 'declined' ? 'Declined' : 'Pending Candidate Response'"
+                        class="shrink-0"
+                      />
+                    </div>
+
+                    <div class="space-y-1 text-[11px] text-gray-700">
+                      <p><strong>Role:</strong> {{ msg.quickAction.offerRole }}</p>
+                      <p><strong>Compensation:</strong> <span class="font-bold text-emerald-700">{{ msg.quickAction.offerSalary }}</span></p>
+                      <p v-if="msg.quickAction.offerJoiningDate"><strong>Joining Date:</strong> {{ msg.quickAction.offerJoiningDate }}</p>
+                    </div>
+                  </div>
 
                   <div
                     class="mt-1 text-[10px] text-right font-medium"
                     :class="msg.senderRole === 'admin' ? 'text-red-200' : 'text-gray-400'"
                   >
                     {{ formatMessageTime(msg.createdAt) }}
-                    <span v-if="msg.senderRole === 'admin'"> · ✓✓</span>
+                    <span v-if="msg.senderRole === 'admin'" :class="msg.read ? 'text-sky-300 font-bold' : 'text-red-200'"> · ✓✓</span>
                   </div>
                 </div>
               </div>
@@ -572,9 +726,39 @@ const adminTemplates = [
           </template>
         </div>
 
+        <!-- Pending File Attachment Preview Pill Bar -->
+        <div v-if="pendingAttachments.length > 0" class="px-3.5 py-2 border-t border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-800/50 flex flex-wrap gap-2 shrink-0">
+          <div
+            v-for="(att, idx) in pendingAttachments"
+            :key="att.name"
+            class="inline-flex items-center gap-2 rounded-lg bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-2.5 py-1 text-xs shadow-2xs"
+          >
+            <UIcon :name="att.type.includes('image') ? 'i-lucide-image' : 'i-lucide-file-text'" class="size-3.5 text-red-500" />
+            <span class="max-w-[150px] truncate font-medium">{{ att.name }}</span>
+            <span class="text-[10px] text-gray-400">({{ formatFileSize(att.size) }})</span>
+            <button type="button" class="text-gray-400 hover:text-red-500 cursor-pointer" @click="removeAttachment(idx)">
+              <UIcon name="i-lucide-x" class="size-3" />
+            </button>
+          </div>
+        </div>
 
-        <!-- Input Bar -->
+        <!-- Input Bar with Paperclip -->
         <div class="p-3.5 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex items-center gap-2 shrink-0">
+          <input
+            ref="fileInputRef"
+            type="file"
+            class="hidden"
+            accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+            @change="handleFileUpload"
+          />
+          <button
+            type="button"
+            class="grid size-9 place-items-center rounded-xl text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-gray-800 transition cursor-pointer shrink-0"
+            title="Attach document, notice, or PDF"
+            @click="triggerFileInput"
+          >
+            <UIcon name="i-lucide-paperclip" class="size-4.5" />
+          </button>
           <input
             v-model="newMessageText"
             type="text"
@@ -587,7 +771,7 @@ const adminTemplates = [
             icon="i-lucide-send"
             size="sm"
             label="Send Official Notice"
-            :disabled="!newMessageText.trim()"
+            :disabled="!newMessageText.trim() && pendingAttachments.length === 0"
             @click="handleSendMessage()"
           />
         </div>
@@ -600,6 +784,20 @@ const adminTemplates = [
         <p class="text-xs text-gray-500 max-w-sm mt-1">Choose a user thread from the left or message any user directly from Users &amp; Roles.</p>
       </div>
 
+      <!-- Modals for in-chat scheduling and offer letter generator -->
+      <ChatInterviewModal
+        v-model="isInterviewModalOpen"
+        :conversation="activeConversation"
+      />
+
+      <ChatOfferLetterModal
+        v-model="isOfferModalOpen"
+        :conversation="activeConversation"
+        :candidate-name="activeConversation?.candidateName"
+        :candidate-email="activeConversation?.candidateEmail"
+        :job-title="activeConversation?.jobTitle"
+        :company-name="activeConversation?.companyName"
+      />
     </div>
   </div>
 </template>
