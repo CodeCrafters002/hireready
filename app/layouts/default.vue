@@ -63,7 +63,14 @@ function isActive(path: string) {
           <template v-if="isAuthenticated">
             <!-- User chip -->
             <div class="hidden items-center gap-2 rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1.5 sm:flex dark:border-indigo-900/40 dark:bg-indigo-950/30">
-              <div class="size-5 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500" />
+              <div class="size-5 rounded-full overflow-hidden bg-gradient-to-br from-indigo-500 to-purple-500 shrink-0">
+                <img
+                  v-if="(currentUser as any)?.profilePhotoUrl"
+                  :src="(currentUser as any).profilePhotoUrl"
+                  class="size-full object-cover"
+                  alt="Avatar"
+                />
+              </div>
               <span class="text-xs font-semibold text-indigo-700 dark:text-indigo-300">{{ currentUser?.name?.split(' ')[0] }}</span>
               <UBadge
                 :label="currentUser?.role"

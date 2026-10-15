@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'candidate' })
 
-const { currentUser } = useAuth()
+const { currentUser, updateCurrentUser } = useAuth()
 const store = useDataStore()
 
 const profile = computed(() => currentUser.value ? store.getProfileByUserId(currentUser.value.id) : null)
@@ -31,23 +31,40 @@ const showPdfModal = ref(false)
 const saving = ref(false)
 const saved = ref(false)
 
-// Load profile data
-onMounted(() => {
-  if (profile.value) {
-    form.fullName = profile.value.fullName || ''
-    form.email = profile.value.email || ''
-    form.mobile = profile.value.mobile || ''
-    form.city = profile.value.city || ''
-    form.skills = profile.value.skills?.join(', ') || ''
-    form.education = profile.value.education || ''
-    form.experience = profile.value.experience || ''
-    form.resumeFilename = profile.value.resumeFilename || ''
-    form.resumeDataUrl = profile.value.resumeDataUrl || ''
-    form.resumeFileSize = profile.value.resumeFileSize || ''
-    form.profilePhotoUrl = profile.value.profilePhotoUrl || ''
-    form.upiId = profile.value.upiId || ''
+function populateForm() {
+  const p = profile.value
+  const u = currentUser.value
+  if (p) {
+    if (!form.fullName && (p.fullName || u?.name)) form.fullName = p.fullName || u?.name || ''
+    if (!form.email && (p.email || u?.email)) form.email = p.email || u?.email || ''
+    if (!form.mobile && p.mobile) form.mobile = p.mobile || ''
+    if (!form.city && p.city) form.city = p.city || ''
+    if (!form.skills && p.skills?.length) form.skills = p.skills.join(', ') || ''
+    if (!form.education && p.education) form.education = p.education || ''
+    if (!form.experience && p.experience) form.experience = p.experience || ''
+    if (!form.resumeFilename && p.resumeFilename) form.resumeFilename = p.resumeFilename || ''
+    if (!form.resumeDataUrl && p.resumeDataUrl) form.resumeDataUrl = p.resumeDataUrl || ''
+    if (!form.resumeFileSize && p.resumeFileSize) form.resumeFileSize = p.resumeFileSize || ''
+    if (!form.profilePhotoUrl && (p.profilePhotoUrl || u?.profilePhotoUrl)) form.profilePhotoUrl = p.profilePhotoUrl || u?.profilePhotoUrl || ''
+    if (!form.upiId && p.upiId) form.upiId = p.upiId || ''
+  } else if (u) {
+    if (!form.fullName) form.fullName = u.name || ''
+    if (!form.email) form.email = u.email || ''
+    if (!form.profilePhotoUrl && u.profilePhotoUrl) form.profilePhotoUrl = u.profilePhotoUrl || ''
   }
+}
+
+// Load profile data
+onMounted(async () => {
+  if (currentUser.value?.id) {
+    await store.fetchProfileByUserId(currentUser.value.id)
+  }
+  populateForm()
 })
+
+watch([profile, currentUser], () => {
+  populateForm()
+}, { immediate: true })
 
 // Calculate profile completion percentage
 const profileCompletion = computed(() => {
@@ -132,6 +149,10 @@ function handlePhotoChange(event: Event) {
 function removePhoto() {
   form.profilePhotoUrl = ''
   if (fileInput.value) fileInput.value.value = ''
+  if (currentUser.value) {
+    updateCurrentUser({ profilePhotoUrl: '' })
+    store.updateUser(currentUser.value.id, { profilePhotoUrl: '' })
+  }
 }
 
 const { getRecommendedJobsForCandidate } = useJobMatching()
@@ -161,6 +182,8 @@ function saveProfile() {
   }
 
   store.upsertProfile(updatedProfile)
+  updateCurrentUser({ profilePhotoUrl: form.profilePhotoUrl, name: form.fullName })
+  store.updateUser(currentUser.value.id, { profilePhotoUrl: form.profilePhotoUrl, name: form.fullName })
 
   setTimeout(() => {
     saving.value = false

@@ -620,22 +620,6 @@ const quickReplies = [
           </template>
         </div>
 
-        <!-- Quick Replies Carousel / Chips (Fixed above input) -->
-        <div
-          v-if="activeConversation.requestStatus !== 'pending' && activeConversation.requestStatus !== 'declined'"
-          class="px-4 py-2 border-t border-gray-100 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-800/40 flex items-center gap-1.5 overflow-x-auto text-nowrap shrink-0"
-        >
-          <span class="text-[10px] font-bold text-gray-400 uppercase shrink-0">Quick reply:</span>
-          <button
-            v-for="reply in quickReplies"
-            :key="reply"
-            type="button"
-            class="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700 transition hover:border-indigo-400 hover:text-indigo-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:text-white shrink-0"
-            @click="handleSendMessage(reply)"
-          >
-            {{ reply }}
-          </button>
-        </div>
 
         <!-- ── Message Input Bar OR Pending / Declined Status Box ──────────── -->
         <div

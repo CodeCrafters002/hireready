@@ -335,8 +335,14 @@ const recruiterTemplates = [
             @click="selectConversation(conv.id)"
           >
             <!-- Candidate Avatar -->
-            <div class="relative size-10 shrink-0 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-700 text-white font-bold text-xs grid place-items-center shadow-2xs">
-              {{ conv.candidateName ? conv.candidateName.charAt(0).toUpperCase() : 'C' }}
+            <div class="relative size-10 shrink-0 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-700 text-white font-bold text-xs grid place-items-center shadow-2xs overflow-hidden">
+              <img
+                v-if="store.getProfileByUserId(conv.candidateId)?.profilePhotoUrl || store.getUserById(conv.candidateId)?.profilePhotoUrl"
+                :src="store.getProfileByUserId(conv.candidateId)?.profilePhotoUrl || store.getUserById(conv.candidateId)?.profilePhotoUrl"
+                alt="Candidate Avatar"
+                class="size-full object-cover"
+              />
+              <span v-else>{{ conv.candidateName ? conv.candidateName.charAt(0).toUpperCase() : 'C' }}</span>
               <span
                 v-if="conv.unreadEmployerCount > 0"
                 class="absolute -top-1 -right-1 grid size-4.5 place-items-center rounded-full bg-indigo-600 text-[10px] font-black text-white ring-2 ring-white dark:ring-gray-900"

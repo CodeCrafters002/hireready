@@ -71,10 +71,10 @@ function isActiveRoute(path: string) {
         <!-- Profile summary -->
         <div class="border-b border-gray-200 p-4 dark:border-gray-800">
           <div class="flex items-center gap-3">
-            <div class="relative size-10 shrink-0 overflow-hidden rounded-full border border-gray-200 dark:border-gray-700">
+            <NuxtLink to="/candidate/profile" class="relative size-10 shrink-0 overflow-hidden rounded-full border border-gray-200 dark:border-gray-700 hover:ring-2 hover:ring-primary transition-all block" title="Edit Profile">
               <img
-                v-if="profile?.profilePhotoUrl"
-                :src="profile.profilePhotoUrl"
+                v-if="profile?.profilePhotoUrl || currentUser?.profilePhotoUrl"
+                :src="profile?.profilePhotoUrl || currentUser?.profilePhotoUrl"
                 class="size-full object-cover"
                 alt="Profile picture"
               >
@@ -84,7 +84,7 @@ function isActiveRoute(path: string) {
               >
                 {{ currentUser?.name?.charAt(0) || 'C' }}
               </div>
-            </div>
+            </NuxtLink>
             <div class="min-w-0">
               <p class="truncate text-sm font-semibold text-gray-950 dark:text-white">{{ currentUser?.name }}</p>
               <p class="truncate text-xs text-gray-500">{{ currentUser?.email }}</p>
@@ -138,6 +138,19 @@ function isActiveRoute(path: string) {
             <NuxtLink to="/candidate/notifications" class="relative" title="Notifications">
               <UIcon name="i-lucide-bell" class="size-5 text-gray-500 hover:text-primary transition-colors" />
               <span v-if="unreadCount > 0" class="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-red-500 text-[10px] font-bold text-white">{{ unreadCount > 9 ? '9+' : unreadCount }}</span>
+            </NuxtLink>
+            <NuxtLink to="/candidate/profile" class="flex items-center gap-2 group ml-1" title="View Profile">
+              <div class="relative size-8 shrink-0 overflow-hidden rounded-full border border-gray-200 dark:border-gray-700 group-hover:ring-2 group-hover:ring-primary transition-all">
+                <img
+                  v-if="profile?.profilePhotoUrl || currentUser?.profilePhotoUrl"
+                  :src="profile?.profilePhotoUrl || currentUser?.profilePhotoUrl"
+                  class="size-full object-cover"
+                  alt="Profile photo"
+                >
+                <div v-else class="grid size-full place-items-center bg-indigo-100 text-xs font-bold text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200">
+                  {{ currentUser?.name?.charAt(0) || 'C' }}
+                </div>
+              </div>
             </NuxtLink>
           </div>
         </header>

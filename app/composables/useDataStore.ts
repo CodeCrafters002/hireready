@@ -119,13 +119,14 @@ export function useDataStore() {
       await $fetch('/api/seed', { method: 'POST', body: { force: false } }).catch(() => null)
 
       // 2. Fetch latest data in parallel from MongoDB
-      const [jobsData, appsData, questionsData, usersData, gigsData, gigAppsData] = await Promise.all([
+      const [jobsData, appsData, questionsData, usersData, gigsData, gigAppsData, profilesData] = await Promise.all([
         $fetch<Job[]>('/api/jobs').catch(() => null),
         $fetch<Application[]>('/api/applications').catch(() => null),
         $fetch<AssessmentQuestion[]>('/api/questions?all=true').catch(() => null),
         $fetch<User[]>('/api/users').catch(() => null),
         $fetch<Gig[]>('/api/gigs').catch(() => null),
-        $fetch<GigApplication[]>('/api/gigs/applications').catch(() => null)
+        $fetch<GigApplication[]>('/api/gigs/applications').catch(() => null),
+        $fetch<CandidateProfile[]>('/api/profile').catch(() => null)
       ])
 
       if (jobsData && jobsData.length > 0) {
@@ -145,6 +146,9 @@ export function useDataStore() {
       }
       if (gigAppsData && gigAppsData.length > 0) {
         saveGigApplications(gigAppsData)
+      }
+      if (profilesData && profilesData.length > 0) {
+        saveProfiles(profilesData)
       }
 
       // Sync chat conversations and messages with MongoDB
@@ -265,6 +269,25 @@ export function useDataStore() {
   function getProfiles(): CandidateProfile[] { return read<CandidateProfile>(KEYS.profiles).filter(p => !isDemoEmail(p.email)) }
   function saveProfiles(profiles: CandidateProfile[]): void { write(KEYS.profiles, profiles.filter(p => !isDemoEmail(p.email))) }
   function getProfileByUserId(userId: string): CandidateProfile | undefined { return getProfiles().find(p => p.userId === userId) }
+
+  async function fetchProfileByUserId(userId: string): Promise<CandidateProfile | undefined> {
+    if (import.meta.server) return undefined
+    try {
+      const remote = await $fetch<CandidateProfile>(`/api/profile/${userId}`).catch(() => null)
+      if (remote && remote.userId) {
+        const profiles = getProfiles()
+        const idx = profiles.findIndex(p => p.userId === userId)
+        if (idx >= 0) profiles[idx] = remote
+        else profiles.push(remote)
+        saveProfiles(profiles)
+        return remote
+      }
+    } catch (err) {
+      console.warn('[DataStore] fetchProfileByUserId non-fatal:', err)
+    }
+    return getProfileByUserId(userId)
+  }
+
   function upsertProfile(data: CandidateProfile): CandidateProfile {
     const profiles = getProfiles()
     const index = profiles.findIndex(p => p.userId === data.userId)
@@ -272,6 +295,16 @@ export function useDataStore() {
     if (index >= 0) profiles[index] = updated
     else profiles.push(updated)
     saveProfiles(profiles)
+
+    // Sync profilePhotoUrl to User object if present
+    if (data.profilePhotoUrl) {
+      const users = getUsers()
+      const uIdx = users.findIndex(u => u.id === data.userId)
+      if (uIdx >= 0) {
+        users[uIdx].profilePhotoUrl = data.profilePhotoUrl
+        saveUsers(users)
+      }
+    }
 
     // Sync to MongoDB
     $fetch(`/api/profile/${data.userId}`, { method: 'PUT', body: updated }).catch(err => {
@@ -1318,7 +1351,7 @@ export function useDataStore() {
     // Users
     getUsers, saveUsers, getUserById, getUserByEmail, createUser, updateUserRole, updateUser, deleteUser,
     // Profiles
-    getProfiles, getProfileByUserId, upsertProfile,
+    getProfiles, getProfileByUserId, fetchProfileByUserId, upsertProfile,
     // Jobs
     getJobs, getPublishedJobs, getJobById, createJob, updateJob, deleteJob, saveJobs,
     // Applications

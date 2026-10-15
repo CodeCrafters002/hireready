@@ -105,9 +105,41 @@ function hasApplied(jobId: string): boolean {
 
 <template>
   <div>
-    <div class="mb-6">
-      <h2 class="text-2xl font-bold text-gray-950 dark:text-white">Welcome back, {{ currentUser?.name?.split(' ')[0] }} 👋</h2>
-      <p class="mt-1 text-gray-500">Here's an overview of your applications and progress.</p>
+    <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div class="flex items-center gap-3.5">
+        <NuxtLink to="/candidate/profile" class="relative size-12 sm:size-14 shrink-0 overflow-hidden rounded-2xl border-2 border-indigo-200 dark:border-indigo-800 shadow-2xs hover:scale-105 transition-all block" title="Edit Profile">
+          <img
+            v-if="profile?.profilePhotoUrl || currentUser?.profilePhotoUrl"
+            :src="profile?.profilePhotoUrl || currentUser?.profilePhotoUrl"
+            class="size-full object-cover"
+            alt="Profile photo"
+          >
+          <div v-else class="grid size-full place-items-center bg-gradient-to-br from-indigo-500 to-purple-600 text-lg sm:text-xl font-bold text-white">
+            {{ currentUser?.name?.charAt(0) || 'C' }}
+          </div>
+        </NuxtLink>
+        <div>
+          <h2 class="text-xl sm:text-2xl font-bold text-gray-950 dark:text-white">Welcome back, {{ currentUser?.name?.split(' ')[0] }} 👋</h2>
+          <p class="mt-0.5 text-xs sm:text-sm text-gray-500">Here's an overview of your applications and progress.</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <UButton
+          to="/candidate/profile"
+          size="xs"
+          variant="outline"
+          color="neutral"
+          icon="i-lucide-user"
+          label="My Profile"
+        />
+        <UButton
+          to="/jobs"
+          size="xs"
+          color="primary"
+          icon="i-lucide-briefcase"
+          label="Explore Jobs"
+        />
+      </div>
     </div>
 
     <!-- Upcoming Interview Alert Banner -->

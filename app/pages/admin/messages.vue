@@ -347,12 +347,18 @@ const adminTemplates = [
           >
             <!-- Avatar -->
             <div
-              class="relative size-10 shrink-0 rounded-full font-bold text-xs grid place-items-center shadow-2xs text-white"
+              class="relative size-10 shrink-0 rounded-full font-bold text-xs grid place-items-center shadow-2xs text-white overflow-hidden"
               :class="conv.isSupportChat || conv.employerId === 'admin-support'
                 ? 'bg-gradient-to-tr from-red-600 to-rose-700 ring-2 ring-red-400/40'
                 : 'bg-gradient-to-tr from-indigo-600 to-purple-600'"
             >
-              <UIcon v-if="conv.isSupportChat || conv.employerId === 'admin-support'" name="i-lucide-shield-check" class="size-5" />
+              <img
+                v-if="store.getProfileByUserId(conv.candidateId)?.profilePhotoUrl || store.getUserById(conv.candidateId)?.profilePhotoUrl"
+                :src="store.getProfileByUserId(conv.candidateId)?.profilePhotoUrl || store.getUserById(conv.candidateId)?.profilePhotoUrl"
+                alt="Avatar"
+                class="size-full object-cover"
+              />
+              <UIcon v-else-if="conv.isSupportChat || conv.employerId === 'admin-support'" name="i-lucide-shield-check" class="size-5" />
               <span v-else>{{ conv.candidateName ? conv.candidateName.charAt(0).toUpperCase() : 'U' }}</span>
 
               <span
@@ -424,8 +430,14 @@ const adminTemplates = [
               <UIcon name="i-lucide-arrow-left" class="size-5" />
             </button>
 
-            <div class="grid size-10 place-items-center rounded-full bg-gradient-to-tr from-red-600 to-rose-700 text-white font-bold text-xs shrink-0 shadow-xs">
-              <UIcon name="i-lucide-shield-check" class="size-5" />
+            <div class="relative size-10 rounded-full overflow-hidden bg-gradient-to-tr from-red-600 to-rose-700 text-white font-bold text-xs shrink-0 shadow-xs grid place-items-center">
+              <img
+                v-if="store.getProfileByUserId(activeConversation.candidateId)?.profilePhotoUrl || store.getUserById(activeConversation.candidateId)?.profilePhotoUrl"
+                :src="store.getProfileByUserId(activeConversation.candidateId)?.profilePhotoUrl || store.getUserById(activeConversation.candidateId)?.profilePhotoUrl"
+                alt="Candidate Avatar"
+                class="size-full object-cover"
+              />
+              <UIcon v-else name="i-lucide-shield-check" class="size-5" />
             </div>
 
             <div class="min-w-0">
@@ -560,19 +572,6 @@ const adminTemplates = [
           </template>
         </div>
 
-        <!-- Admin Quick Broadcast Templates -->
-        <div class="px-4 py-2 border-t border-gray-100 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-800/40 flex items-center gap-1.5 overflow-x-auto text-nowrap shrink-0">
-          <span class="text-[10px] font-bold text-gray-400 uppercase shrink-0">Admin Templates:</span>
-          <button
-            v-for="tmpl in adminTemplates"
-            :key="tmpl"
-            type="button"
-            class="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700 transition hover:border-red-500 hover:text-red-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:text-white shrink-0"
-            @click="handleSendMessage(tmpl)"
-          >
-            {{ tmpl.slice(0, 32) }}...
-          </button>
-        </div>
 
         <!-- Input Bar -->
         <div class="p-3.5 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex items-center gap-2 shrink-0">
